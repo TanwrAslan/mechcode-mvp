@@ -1,0 +1,6 @@
+{
+  "name": "MechCode",
+  "description": "Makine mühendisliği öğrencileri için DFM (Üretim İçin Tasarım) görevleri ve CAD analiz platformu",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

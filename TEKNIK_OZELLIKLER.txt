@@ -1,0 +1,98 @@
+================================================================
+MECHCODE - TEKNIK OZELLIKLER VE KULLANILAN TEKNOLOJILER
+================================================================
+Makine muhendisligi egitim + portfoy platformu (B2B SaaS MVP)
+
+----------------------------------------------------------------
+1. GENEL MIMARI
+----------------------------------------------------------------
+- Frontend: React tabanli SPA (Vite dev sunucusu, port 3000)
+- Backend: Python FastAPI REST API (Uvicorn, port 8000)
+- Frontend -> Backend iletisimi: /api proxy uzerinden (vite.config.ts)
+- Mock-first yaklasim: Gercek hesaplanamayan analizler mock veriyle
+  doner, rapor "geometrySource: real_mesh | mock" alaniyla isaretlenir.
+
+----------------------------------------------------------------
+2. FRONTEND TEKNOLOJILERI
+----------------------------------------------------------------
+- React 19 + TypeScript 5.8
+- Vite 6 (build ve dev sunucusu)
+- Tailwind CSS 4 (@tailwindcss/vite eklentisi ile)
+- Three.js 0.180 (3B goruntuleme)
+- occt-import-js (OpenCASCADE WASM) - STEP/IGES dosyalarini
+  tarayicida parse etme
+- lucide-react (ikonlar)
+- motion (animasyonlar)
+
+Onemli moduller (src/):
+- cadGeometry.ts        : Mesh'ten hacim / bounding box / agirlik hesabi
+- components/StepMeshViewer.tsx : STEP/IGES -> Three.js render
+- components/CadViewer3D.tsx    : Parse hatasinda SVG mock fallback
+- components/Workspace.tsx, Dashboard.tsx, PortfolioView.tsx,
+  PublicPortfolio.tsx, OnboardingModal.tsx, DfmGuideModal.tsx
+
+----------------------------------------------------------------
+3. BACKEND TEKNOLOJILERI
+----------------------------------------------------------------
+- Python 3.13
+- FastAPI (REST API)
+- Uvicorn (ASGI sunucu)
+- OpenAI SDK -> GPT-4o Vision (teknik resim / PDF analizi)
+- PyMuPDF (PDF -> PNG donusumu, Vision girdisi icin)
+- fpdf2 (PDF rapor uretimi)
+- python-dotenv (.env yonetimi), python-multipart (dosya yukleme)
+
+Onemli moduller (backend/):
+- main.py               : API endpoint'leri
+- engineering_engine.py : Geometri/DFM analiz motoru
+- llm_analyzer.py       : GPT-4o Vision entegrasyonu (USE_REAL_API=True,
+                          hata durumunda mock'a duser)
+- file_parser.py, scoring.py, data.py, config.py
+
+----------------------------------------------------------------
+4. API ENDPOINT'LERI
+----------------------------------------------------------------
+GET  /api/health                    : Saglik kontrolu
+GET  /api/tasks                     : Gorev listesi
+GET  /api/tasks/{task_id}           : Gorev detayi
+GET  /api/users/{user_id}           : Kullanici bilgisi
+GET  /api/users/{user_id}/portfolio : Kullanici portfoyu
+POST /api/upload                    : CAD/PDF dosya yukleme
+POST /api/analyze                   : Analiz calistirma
+GET  /api/report/{analysis_id}/json : Rapor (JSON)
+GET  /api/report/{analysis_id}/pdf  : Rapor (PDF)
+POST /api/portfolio/save            : Portfoye kaydetme
+
+----------------------------------------------------------------
+5. ANALIZ YETENEKLERI
+----------------------------------------------------------------
+GERCEK (mesh tabanli, frontend'de hesaplanir):
+- Hacim, bounding box, agirlik (cadGeometry.ts -> /api/analyze
+  realGeometry alani)
+
+GERCEK (LLM tabanli):
+- Teknik resim/PDF analizi: PyMuPDF ile PNG'ye cevrilip
+  GPT-4o Vision'a gonderilir
+
+MOCK (B-Rep gerektirir, OpenCASCADE Python entegrasyonu bekliyor):
+- Et kalinligi, radyus, H7 tolerans, undercut analizleri
+  (gecis noktasi: backend/engineering_engine.py::load_geometry)
+
+3B GORUNTULEME:
+- STEP/IGES dosyalari tarayicida occt-import-js (WASM) ile parse
+  edilir, Three.js ile render edilir; hata olursa SVG mock'a duser.
+- Ornek test dosyasi: uploads/sample-as1.stp
+
+----------------------------------------------------------------
+6. YAPILANDIRMA
+----------------------------------------------------------------
+- OPENAI_API_KEY yalnizca kok dizindeki .env dosyasinda tutulur;
+  bos ise backend acik hata mesajiyla durur.
+
+----------------------------------------------------------------
+7. CALISTIRMA
+----------------------------------------------------------------
+Backend : py -3.13 -m uvicorn backend.main:app --reload --port 8000
+Frontend: npm run dev   (port 3000, /api proxy'li)
+Lint    : npm run lint  (tsc --noEmit)
+Build   : npm run build
