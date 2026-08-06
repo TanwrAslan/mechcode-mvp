@@ -196,3 +196,19 @@ def save_to_portfolio(payload: SavePortfolioRequest):
             user["verifiedBadgesCount"] = len(user["badges"])
 
     return {"ok": True, "user": user, "task": task}
+
+
+# ---------------------------------------------------------------- Frontend (statik)
+# API rotalari yukarida tanimlandigi icin oncelik onlardadir; "/" mount'u
+# yalnizca eslesmeyen yollari (index.html, assets vb.) karsilar.
+import os
+
+from fastapi.staticfiles import StaticFiles
+
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+else:
+    @app.get("/")
+    async def root():
+        return {"message": "MechCode Backend çalışıyor. Frontend build ediliyor..."}
