@@ -1,132 +1,217 @@
 import React, { useEffect, useState } from 'react';
+import { ScreenType, Task, UploadedCad, UserProfile } from './types';
+import { INITIAL_TASKS, INITIAL_USER_PROFILE } from './data/tasks';
 import { Header } from './components/Header';
-import { Dashboard } from './components/Dashboard';
-import { Workspace } from './components/Workspace';
-import { PortfolioView } from './components/PortfolioView';
-import { DfmGuideModal } from './components/DfmGuideModal';
-import { OnboardingModal } from './components/OnboardingModal';
-import { placeholderTask, placeholderUserProfile } from './data/placeholders';
-import { fetchTasks, fetchUser } from './api';
-import { Task, UserProfile } from './types';
+import { LandingScreen } from './components/LandingScreen';
+import { TaskCatalog } from './components/TaskCatalog';
+import { TaskDetailScreen } from './components/TaskDetailScreen';
+import { ExampleSolutionScreen } from './components/ExampleSolutionScreen';
+import { SelfEvaluationScreen } from './components/SelfEvaluationScreen';
+import { PortfolioScreen } from './components/PortfolioScreen';
+import { ProUpgradeModal } from './components/ProUpgradeModal';
+import { AdminScreen } from './components/AdminScreen';
 
-export const DEMO_USER_ID = 'demo-user';
+const TASKS_STORAGE_KEY = 'forgelab_tasks_v1';
+
+const loadTasksFromStorage = (): Task[] => {
+  try {
+    const raw = localStorage.getItem(TASKS_STORAGE_KEY);
+    if (!raw) return INITIAL_TASKS;
+    const parsed = JSON.parse(raw) as Task[];
+    if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_TASKS;
+    return parsed;
+  } catch {
+    return INITIAL_TASKS;
+  }
+};
+
+const persistTasks = (tasks: Task[]) => {
+  try {
+    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
+  } catch {
+    // storage full or disabled — silently ignore for MVP
+  }
+};
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<'dashboard' | 'workspace' | 'portfolio'>('dashboard');
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [user, setUser] = useState<UserProfile>(placeholderUserProfile);
-  const [backendError, setBackendError] = useState<string | null>(null);
-  const [isDfmGuideOpen, setIsDfmGuideOpen] = useState<boolean>(false);
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(true);
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>(() =>
+    typeof window !== 'undefined' && window.location.hash === '#admin' ? 'admin' : 'landing'
+  );
+  const [tasks, setTasks] = useState<Task[]>(loadTasksFromStorage);
+  const [selectedTask, setSelectedTask] = useState<Task>(() => loadTasksFromStorage()[0]);
+  const [user, setUser] = useState<UserProfile>(INITIAL_USER_PROFILE);
+  const [isProModalOpen, setIsProModalOpen] = useState<boolean>(false);
+  const [completedTaskIds, setCompletedTaskIds] = useState<string[]>(['task-1']);
+  const [uploadedCad, setUploadedCad] = useState<UploadedCad | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchTasks(), fetchUser(DEMO_USER_ID)])
-      .then(([taskList, profile]) => {
-        setTasks(taskList);
-        setUser(profile);
-        setBackendError(null);
-      })
-      .catch((err: Error) => {
-        setBackendError(err.message);
-      });
+    persistTasks(tasks);
+  }, [tasks]);
+
+  useEffect(() => {
+    const onHashChange = () => {
+      if (window.location.hash === '#admin') setCurrentScreen('admin');
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // Select Task and transition to Workspace (Screen 2)
-  const handleSelectTask = (task: Task) => {
-    setSelectedTask(task);
-    setCurrentScreen('workspace');
+  const navigate = (screen: ScreenType) => {
+    setCurrentScreen(screen);
+    if (screen === 'admin') {
+      window.location.hash = 'admin';
+    } else if (window.location.hash === '#admin') {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Save score to portfolio (backend'de kaydedildikten sonra güncel state buraya gelir)
-  const handleSaveToPortfolio = (updatedTask: Task, updatedUser: UserProfile) => {
-    setTasks((prevTasks) => prevTasks.map((t) => (t.id === updatedTask.id ? updatedTask : t)));
-    setUser(updatedUser);
+  const handleSelectTask = (task: Task) => {
+    setSelectedTask(task);
+    if (!uploadedCad || uploadedCad.taskId !== task.id) {
+      setUploadedCad(null);
+    }
+    navigate('detail');
   };
 
+  const handleProceedToSolution = () => navigate('solution');
+  const handleProceedToEvaluation = () => navigate('evaluation');
+
+  const handleCompleteAndAddToPortfolio = (score: number) => {
+    if (!completedTaskIds.includes(selectedTask.id)) {
+      setCompletedTaskIds(prev => [...prev, selectedTask.id]);
+
+      setUser(prev => ({
+        ...prev,
+        xp: prev.xp + 50,
+        completedTasksCount: prev.completedTasksCount + 1,
+        level: Math.floor((prev.xp + 50) / 100) + 1
+      }));
+
+      setTasks(prev =>
+        prev.map(t => (t.id === selectedTask.id ? { ...t, status: 'completed' } : t))
+      );
+    }
+
+    navigate('portfolio');
+  };
+
+  const handleUpgradePro = () => {
+    setUser(prev => ({ ...prev, isPro: true }));
+    setTasks(prev => prev.map(t => ({ ...t, isPremium: false })));
+  };
+
+  // Admin CRUD handlers
+  const handleCreateTask = (task: Task) => {
+    setTasks(prev => [...prev, task]);
+  };
+
+  const handleUpdateTask = (task: Task) => {
+    setTasks(prev => prev.map(t => (t.id === task.id ? task : t)));
+    if (selectedTask.id === task.id) setSelectedTask(task);
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    setTasks(prev => {
+      const next = prev.filter(t => t.id !== taskId);
+      if (selectedTask.id === taskId && next.length > 0) setSelectedTask(next[0]);
+      return next;
+    });
+    setCompletedTaskIds(prev => prev.filter(id => id !== taskId));
+  };
+
+  const handleResetTasks = () => {
+    setTasks(INITIAL_TASKS);
+    setSelectedTask(INITIAL_TASKS[0]);
+  };
+
+  const completedTasksList = tasks.filter(t => completedTaskIds.includes(t.id));
+  const portfolioFallback = tasks[0] || INITIAL_TASKS[0];
+
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-900 font-sans antialiased selection:bg-blue-500 selection:text-white flex flex-col">
-      
-      {/* Header Navigation */}
+    <div className="min-h-screen bg-[#0B0E14] text-[#E6EDF3] font-sans selection:bg-[#EF4444] selection:text-black flex flex-col">
       <Header
         currentScreen={currentScreen}
-        onNavigate={(screen) => {
-          setCurrentScreen(screen);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
+        onNavigate={navigate}
         user={user}
-        onOpenDfmGuide={() => setIsDfmGuideOpen(true)}
+        onOpenProModal={() => setIsProModalOpen(true)}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        {backendError && (
-          <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 text-xs font-mono leading-relaxed">
-            <strong>Backend'e bağlanılamadı:</strong> {backendError}
-            <br />
-            Proje kök dizininde <code className="bg-rose-100 px-1 rounded">uvicorn backend.main:app --reload --port 8000</code>{' '}
-            komutunun çalıştığından ve <code className="bg-rose-100 px-1 rounded">.env</code> dosyasında{' '}
-            <code className="bg-rose-100 px-1 rounded">OPENAI_API_KEY</code> tanımlı olduğundan emin olun.
-          </div>
-        )}
+      <main className="flex-1">
+        {currentScreen === 'landing' && <LandingScreen onNavigate={navigate} />}
 
-        {currentScreen === 'dashboard' && (
-          <Dashboard
-            tasks={tasks.length > 0 ? tasks : backendError ? [placeholderTask] : []}
-            onSelectTask={(task) => {
-              if (task.id !== placeholderTask.id) handleSelectTask(task);
-            }}
-            user={user}
+        {currentScreen === 'catalog' && (
+          <TaskCatalog
+            tasks={tasks}
+            onSelectTask={handleSelectTask}
+            onOpenProModal={() => setIsProModalOpen(true)}
           />
         )}
 
-        {currentScreen === 'workspace' && selectedTask && (
-          <Workspace
+        {currentScreen === 'detail' && (
+          <TaskDetailScreen
             task={selectedTask}
-            onBack={() => setCurrentScreen('dashboard')}
-            onSaveToPortfolio={handleSaveToPortfolio}
+            uploadedCad={uploadedCad && uploadedCad.taskId === selectedTask.id ? uploadedCad : null}
+            onUploadedCadChange={setUploadedCad}
+            onBackToCatalog={() => navigate('catalog')}
+            onProceedToSolution={handleProceedToSolution}
+          />
+        )}
+
+        {currentScreen === 'solution' && (
+          <ExampleSolutionScreen
+            task={selectedTask}
+            uploadedCad={uploadedCad && uploadedCad.taskId === selectedTask.id ? uploadedCad : null}
+            onUploadedCadChange={setUploadedCad}
+            onBackToDetail={() => navigate('detail')}
+            onProceedToEvaluation={handleProceedToEvaluation}
+          />
+        )}
+
+        {currentScreen === 'evaluation' && (
+          <SelfEvaluationScreen
+            task={selectedTask}
+            onBackToSolution={() => navigate('solution')}
+            onCompleteAndAddToPortfolio={handleCompleteAndAddToPortfolio}
           />
         )}
 
         {currentScreen === 'portfolio' && (
-          <PortfolioView
+          <PortfolioScreen
             user={user}
-            tasks={tasks}
-            onBackToDashboard={() => setCurrentScreen('dashboard')}
+            completedTasks={completedTasksList.length > 0 ? completedTasksList : [portfolioFallback]}
             onOpenTask={(task) => {
               setSelectedTask(task);
-              setCurrentScreen('workspace');
+              navigate('detail');
             }}
+          />
+        )}
+
+        {currentScreen === 'admin' && (
+          <AdminScreen
+            tasks={tasks}
+            onCreateTask={handleCreateTask}
+            onUpdateTask={handleUpdateTask}
+            onDeleteTask={handleDeleteTask}
+            onResetTasks={handleResetTasks}
           />
         )}
       </main>
 
-      {/* DFM Cheat Sheet Modal */}
-      <DfmGuideModal
-        isOpen={isDfmGuideOpen}
-        onClose={() => setIsDfmGuideOpen(false)}
-      />
-
-      {/* Onboarding Welcome Modal */}
-      <OnboardingModal
-        isOpen={isOnboardingOpen}
-        onClose={() => setIsOnboardingOpen(false)}
-      />
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-6 text-center text-xs font-mono text-gray-500 mt-12">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-gray-800">MechCode</span>
-            <span>— Mühendislik Öğrencileri İçin DFM & CAD Analiz Platformu</span>
-          </div>
-          <div className="text-gray-500">
-            © 2026 MechCode Inc. Tüm hakları saklıdır.
-          </div>
+      <footer className="h-10 bg-[#0D1117] border-t border-[#30363D] px-6 flex items-center justify-between text-[11px] text-[#484F58] font-mono select-none">
+        <div>FORGELAB v1.2 // ENGINEERING SIMULATION PLATFORM</div>
+        <div className="flex gap-4">
+          <span className="hidden sm:inline">LATENCY: 12ms</span>
+          <span className="hidden sm:inline">SESSION: ACTIVE</span>
+          <span className="text-[#EF4444] font-bold">STATUS: CALIBRATED</span>
         </div>
       </footer>
 
+      <ProUpgradeModal
+        isOpen={isProModalOpen}
+        onClose={() => setIsProModalOpen(false)}
+        onUpgradeSuccess={handleUpgradePro}
+      />
     </div>
   );
 }

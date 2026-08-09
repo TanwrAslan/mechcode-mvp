@@ -34,6 +34,7 @@ export interface RealGeometry {
   triangleCount: number;
 }
 
+// Hacim: her kapalı mesh için işaretli tetrahedron toplamı (birim: mm³ -> cm³)
 export function computeRealGeometry(meshes: OcctMesh[]): RealGeometry {
   let totalVolumeMm3 = 0;
   let triangleCount = 0;

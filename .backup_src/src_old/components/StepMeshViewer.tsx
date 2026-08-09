@@ -26,11 +26,11 @@ async function parseCadFile(file: File): Promise<THREE.Group | null> {
 
     const color = meshData.color
       ? new THREE.Color(meshData.color[0], meshData.color[1], meshData.color[2])
-      : new THREE.Color(0xef4444);
+      : new THREE.Color(0x94a3b8);
     const material = new THREE.MeshStandardMaterial({
       color,
-      metalness: 0.55,
-      roughness: 0.5,
+      metalness: 0.6,
+      roughness: 0.45,
       side: THREE.DoubleSide,
     });
     group.add(new THREE.Mesh(geometry, material));
@@ -40,19 +40,18 @@ async function parseCadFile(file: File): Promise<THREE.Group | null> {
 
 interface StepMeshViewerProps {
   file: File;
-  viewMode?: 'shaded' | 'wireframe';
-  onParseError?: () => void;
+  viewMode: 'shaded' | 'wireframe' | 'dfm_heatmap';
+  onParseError: () => void;
 }
 
 export const StepMeshViewer: React.FC<StepMeshViewerProps> = ({
   file,
-  viewMode = 'shaded',
+  viewMode,
   onParseError,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const groupRef = useRef<THREE.Group | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [errored, setErrored] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -63,10 +62,10 @@ export const StepMeshViewer: React.FC<StepMeshViewerProps> = ({
     let controls: OrbitControls | null = null;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x060a14);
+    scene.background = new THREE.Color(0x0f172a);
 
     const width = container.clientWidth || 600;
-    const height = container.clientHeight || 400;
+    const height = container.clientHeight || 300;
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 10000);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -78,23 +77,21 @@ export const StepMeshViewer: React.FC<StepMeshViewerProps> = ({
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
     keyLight.position.set(5, 8, 6);
     scene.add(keyLight);
-    const fillLight = new THREE.DirectionalLight(0xef4444, 0.35);
+    const fillLight = new THREE.DirectionalLight(0x3b82f6, 0.5);
     fillLight.position.set(-6, 2, -4);
     scene.add(fillLight);
 
     setIsLoading(true);
-    setErrored(false);
     parseCadFile(file)
       .then((group) => {
         if (disposed) return;
         if (!group) {
-          setErrored(true);
-          onParseError?.();
-          setIsLoading(false);
+          onParseError();
           return;
         }
         groupRef.current = group;
 
+        // Modeli merkeze al ve kameraya sığdır
         const box = new THREE.Box3().setFromObject(group);
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
@@ -102,7 +99,7 @@ export const StepMeshViewer: React.FC<StepMeshViewerProps> = ({
         group.position.sub(center);
         scene.add(group);
 
-        const grid = new THREE.GridHelper(maxDim * 2.5, 24, 0xef4444, 0x1e293b);
+        const grid = new THREE.GridHelper(maxDim * 2.5, 24, 0x1d4ed8, 0x1e293b);
         grid.position.y = -size.y / 2 - maxDim * 0.05;
         scene.add(grid);
 
@@ -127,10 +124,7 @@ export const StepMeshViewer: React.FC<StepMeshViewerProps> = ({
         animate();
       })
       .catch(() => {
-        if (disposed) return;
-        setErrored(true);
-        onParseError?.();
-        setIsLoading(false);
+        if (!disposed) onParseError();
       });
 
     const handleResize = () => {
@@ -173,14 +167,9 @@ export const StepMeshViewer: React.FC<StepMeshViewerProps> = ({
 
   return (
     <div ref={containerRef} className="absolute inset-0">
-      {isLoading && !errored && (
-        <div className="absolute inset-0 flex items-center justify-center text-xs font-mono text-[#EF4444] bg-[#060A14]/85 z-10">
-          STEP/IGES geometrisi yükleniyor...
-        </div>
-      )}
-      {errored && (
-        <div className="absolute inset-0 flex items-center justify-center text-xs font-mono text-amber-400 bg-[#060A14]/85 z-10 text-center px-6">
-          Bu dosya parse edilemedi. STEP AP203/AP214 veya IGES formatı önerilir.
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center text-xs font-mono text-blue-300 bg-slate-900/80 z-10">
+          STEP geometrisi yükleniyor...
         </div>
       )}
     </div>

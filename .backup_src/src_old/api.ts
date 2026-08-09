@@ -1,4 +1,4 @@
-import { EvaluationReport } from './types';
+import { EvaluationReport, Task, UserProfile } from './types';
 
 const API_BASE = '/api';
 
@@ -16,6 +16,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return res.json() as Promise<T>;
 }
+
+export const fetchTasks = () => request<Task[]>('/tasks');
+
+export const fetchUser = (userId: string) => request<UserProfile>(`/users/${userId}`);
+
+export const fetchPublicPortfolio = (userId: string) =>
+  request<{ user: UserProfile; completedTasks: Task[] }>(`/users/${userId}/portfolio`);
 
 export interface UploadResult {
   fileId: string;
@@ -46,6 +53,14 @@ export function analyzeFile(params: {
   } | null;
 }): Promise<AnalyzeResult> {
   return request<AnalyzeResult>('/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+}
+
+export function savePortfolio(params: { userId: string; taskId: string; score: number }) {
+  return request<{ ok: boolean; user: UserProfile; task: Task }>('/portfolio/save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),

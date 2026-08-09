@@ -1,4 +1,4 @@
-export type ScreenType = 'landing' | 'catalog' | 'detail' | 'solution' | 'evaluation' | 'portfolio' | 'admin';
+export type ScreenType = 'landing' | 'catalog' | 'detail' | 'solution' | 'evaluation' | 'portfolio';
 
 export type TaskDifficulty = 'Başlangıç' | 'Orta' | 'İleri';
 
@@ -97,78 +97,4 @@ export interface SubmissionState {
   score?: number;
   feedback?: string;
   completedAt?: string;
-}
-
-// --------------------------------------------------------------------------
-// Backend analysis report (MechCode /api/analyze response)
-// --------------------------------------------------------------------------
-
-export interface DfmCheckItem {
-  id: string;
-  title: string;
-  description: string;
-  status: 'success' | 'warning' | 'error';
-  value?: string;
-  recommendation?: string;
-}
-
-export interface ReportSection {
-  title: string;
-  points: number;
-  maxPoints: number;
-  status: 'success' | 'warning' | 'error';
-  detail: string;
-}
-
-export interface LlmFeedback {
-  provider: string;
-  model: string;
-  missingDimensions: string[];
-  missingTolerances: string[];
-  suggestions: string[];
-  note?: string;
-  analyzedFile?: string;
-}
-
-export interface EvaluationReport {
-  score: number;
-  passed?: boolean;
-  verdict?: 'Geçti' | 'Kaldı';
-  analysisId?: string;
-  analyzedFileName?: string;
-  minWallThicknessMm?: number;
-  sections?: ReportSection[];
-  llmFeedback?: LlmFeedback;
-  calculatedWeightGrams: number;
-  targetWeightGrams: number;
-  volumeCm3: number;
-  boundingBox: {
-    lengthMm: number;
-    widthMm: number;
-    heightMm: number;
-  };
-  materialName: string;
-  manufacturingType: string;
-  successChecks: DfmCheckItem[];
-  warnings: DfmCheckItem[];
-  cadMeshDetails: {
-    facesCount: number;
-    edgesCount: number;
-    minRadiusMm: number;
-    hasH7Tolerance: boolean;
-  };
-  geometrySource?: 'real_mesh' | 'mock';
-}
-
-export interface UploadedCad {
-  taskId: string;
-  file: File;
-  fileId?: string;
-  geometry?: {
-    volumeCm3: number;
-    boundingBoxMm: { x: number; y: number; z: number };
-    triangleCount: number;
-  };
-  report?: EvaluationReport;
-  parseFailed?: boolean;
 }

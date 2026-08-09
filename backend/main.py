@@ -1,8 +1,24 @@
 """MechCode FastAPI Backend.
 
 Calistirma (proje kok dizininden):
-    uvicorn backend.main:app --reload --port 8000
+    py -3.13 -m uvicorn backend.main:app --reload --port 8000
+
+DIKKAT: Bu makinede varsayilan `python` 3.7'dir ve kod Python 3.10+ gerektirir.
+Her zaman `py -3.13` kullanin (veya start-backend.bat).
 """
+import sys
+
+# Python 3.10+ sozdizimi (PEP 604 `X | None`) kullaniliyor. Eski surumde
+# anlasilmaz bir TypeError yerine net bir mesaj verelim.
+if sys.version_info < (3, 10):
+    raise SystemExit(
+        "\n[MechCode] Hatali Python surumu: {}.{}.{}\n"
+        "Bu proje Python 3.10+ gerektirir (varsayilan `python` bu makinede 3.7).\n"
+        "Dogru calistirma komutu:\n"
+        "    py -3.13 -m uvicorn backend.main:app --reload --port 8000\n"
+        "veya proje kokunden: start-backend.bat\n".format(*sys.version_info[:3])
+    )
+
 import uuid
 from typing import Any, Dict, Optional
 
