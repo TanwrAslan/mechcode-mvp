@@ -22,11 +22,12 @@ if sys.version_info < (3, 10):
 import uuid
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
+from .auth import AUTH_REQUIRED, PUBLIC_API_PATHS, AuthError, is_admin, verify_id_token
 from .config import require_openai_key
 from .data import TASKS, get_task, get_user
 from .engineering_engine import EngineeringCalculationEngine
@@ -39,6 +40,38 @@ from .scoring import ScoringEngine
 require_openai_key()
 
 app = FastAPI(title="MechCode API", version="0.1.0")
+
+
+# ------------------------------------------------------- Kimlik dogrulama
+# DIKKAT: Bu middleware CORS'tan ONCE tanimlanmali. Starlette en son eklenen
+# middleware'i en disa koyar; boylece CORSMiddleware bunu sarmalar ve 401
+# yanitlari da CORS basliklarini alir (aksi halde tarayici hatayi gizler).
+@app.middleware("http")
+async def firebase_auth_middleware(request: Request, call_next):
+    """Her /api isteginde Firebase ID token'i dogrular.
+
+    Muaf olanlar: CORS preflight (OPTIONS), /api/health ve API disi yollar
+    (frontend statik dosyalari).
+    """
+    path = request.url.path
+
+    if not AUTH_REQUIRED or request.method == "OPTIONS" or not path.startswith("/api"):
+        return await call_next(request)
+
+    if path in PUBLIC_API_PATHS:
+        return await call_next(request)
+
+    try:
+        decoded = verify_id_token(request.headers.get("Authorization"))
+        if path.startswith("/api/admin") and not is_admin(decoded):
+            raise AuthError(403, "Bu işlem için yönetici yetkisi gerekiyor.")
+    except AuthError as exc:
+        return JSONResponse(status_code=exc.status, content={"detail": exc.detail})
+
+    # Endpoint'ler kullaniciya erisebilsin diye istege ilistir.
+    request.state.user = decoded
+    return await call_next(request)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -215,15 +248,35 @@ def save_to_portfolio(payload: SavePortfolioRequest):
 
 
 # ---------------------------------------------------------------- Frontend (statik)
-# API rotalari yukarida tanimlandigi icin oncelik onlardadir; "/" mount'u
-# yalnizca eslesmeyen yollari (index.html, assets vb.) karsilar.
+# Frontend react-router (BrowserRouter) kullaniyor: /login, /admin, /dashboard
+# gibi yollarin sunucuda karsiligi yok. Sayfa yenilendiginde 404 donmemesi icin
+# eslesmeyen tum GET isteklerine index.html servis ediyoruz (SPA fallback).
 import os
 
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
-    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+    assets_dir = os.path.join(static_dir, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    index_file = os.path.join(static_dir, "index.html")
+
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str):
+        # Tanimli /api rotalari bu noktaya ulasmaz; buraya duseni 404 yapalim ki
+        # yanlis yazilmis bir API yolu sessizce HTML dondurmesin.
+        if full_path.startswith("api/") or full_path == "api":
+            raise HTTPException(status_code=404, detail="Bulunamadı")
+
+        # favicon.svg, robots.txt gibi kokteki gercek dosyalar
+        candidate = os.path.normpath(os.path.join(static_dir, full_path))
+        if full_path and candidate.startswith(static_dir) and os.path.isfile(candidate):
+            return FileResponse(candidate)
+
+        return FileResponse(index_file)
 else:
     @app.get("/")
     async def root():

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { EvaluationReport, Task, UploadedCad } from '../types';
 import { Isometric3DViewer } from './Isometric3DViewer';
 import { StepMeshViewer } from './StepMeshViewer';
-import { analyzeFile, reportPdfUrl } from '../api';
+import { analyzeFile, downloadReportPdf } from '../api';
 import { isCadFile } from '../cadGeometry';
 import {
   ArrowRight, Lightbulb, Scale, Sparkles, ChevronLeft, Box, FileCheck2,
@@ -272,15 +272,18 @@ export const ExampleSolutionScreen: React.FC<ExampleSolutionScreenProps> = ({
                   )}
 
                   {report.analysisId && (
-                    <a
-                      href={reportPdfUrl(report.analysisId)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void downloadReportPdf(report.analysisId!).catch((err) =>
+                          setAnalyzeError(err instanceof Error ? err.message : 'PDF indirilemedi')
+                        );
+                      }}
                       className="inline-flex items-center space-x-2 text-xs font-mono text-[#EF4444] hover:text-white bg-[#0D1117] border border-[#EF4444]/40 hover:border-[#EF4444] px-3 py-1.5 rounded transition"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>PDF Rapor İndir</span>
-                    </a>
+                    </button>
                   )}
                 </>
               )}

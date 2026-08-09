@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ScreenType, Task, UploadedCad, UserProfile } from './types';
 import { INITIAL_TASKS, INITIAL_USER_PROFILE } from './data/tasks';
 import { Header } from './components/Header';
@@ -9,9 +10,47 @@ import { ExampleSolutionScreen } from './components/ExampleSolutionScreen';
 import { SelfEvaluationScreen } from './components/SelfEvaluationScreen';
 import { PortfolioScreen } from './components/PortfolioScreen';
 import { ProUpgradeModal } from './components/ProUpgradeModal';
-import { AdminScreen } from './components/AdminScreen';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { AdminPanel } from './pages/AdminPanel';
+import { Login } from './pages/Login';
 
 const TASKS_STORAGE_KEY = 'forgelab_tasks_v1';
+
+/**
+ * Ekran adı <-> URL eşlemesi.
+ *
+ * Uygulama ekran-state makinesiyle yazılmıştı; react-router'a geçerken alt
+ * bileşenlerin (özellikle Header'ın) arayüzünü bozmamak için `ScreenType`
+ * kavramı korunuyor ve yalnızca burada URL'e çevriliyor.
+ */
+const SCREEN_TO_PATH: Record<ScreenType, string> = {
+  landing: '/',
+  catalog: '/dashboard',
+  detail: '/workspace',
+  solution: '/workspace/solution',
+  evaluation: '/workspace/evaluation',
+  portfolio: '/portfolio',
+  admin: '/admin',
+};
+
+const pathToScreen = (pathname: string): ScreenType => {
+  switch (pathname) {
+    case '/dashboard':
+      return 'catalog';
+    case '/workspace':
+      return 'detail';
+    case '/workspace/solution':
+      return 'solution';
+    case '/workspace/evaluation':
+      return 'evaluation';
+    case '/portfolio':
+      return 'portfolio';
+    case '/admin':
+      return 'admin';
+    default:
+      return 'landing';
+  }
+};
 
 const loadTasksFromStorage = (): Task[] => {
   try {
@@ -34,9 +73,9 @@ const persistTasks = (tasks: Task[]) => {
 };
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>(() =>
-    typeof window !== 'undefined' && window.location.hash === '#admin' ? 'admin' : 'landing'
-  );
+  const location = useLocation();
+  const routerNavigate = useNavigate();
+
   const [tasks, setTasks] = useState<Task[]>(loadTasksFromStorage);
   const [selectedTask, setSelectedTask] = useState<Task>(() => loadTasksFromStorage()[0]);
   const [user, setUser] = useState<UserProfile>(INITIAL_USER_PROFILE);
@@ -44,25 +83,15 @@ export default function App() {
   const [completedTaskIds, setCompletedTaskIds] = useState<string[]>(['task-1']);
   const [uploadedCad, setUploadedCad] = useState<UploadedCad | null>(null);
 
+  const currentScreen = pathToScreen(location.pathname);
+  const isLoginPage = location.pathname === '/login';
+
   useEffect(() => {
     persistTasks(tasks);
   }, [tasks]);
 
-  useEffect(() => {
-    const onHashChange = () => {
-      if (window.location.hash === '#admin') setCurrentScreen('admin');
-    };
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, []);
-
   const navigate = (screen: ScreenType) => {
-    setCurrentScreen(screen);
-    if (screen === 'admin') {
-      window.location.hash = 'admin';
-    } else if (window.location.hash === '#admin') {
-      history.replaceState(null, '', window.location.pathname + window.location.search);
-    }
+    routerNavigate(SCREEN_TO_PATH[screen]);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -128,6 +157,15 @@ export default function App() {
   const completedTasksList = tasks.filter(t => completedTaskIds.includes(t.id));
   const portfolioFallback = tasks[0] || INITIAL_TASKS[0];
 
+  // Login sayfası kendi tam ekran düzenini kullanır (header/footer olmadan).
+  if (isLoginPage) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+      </Routes>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0B0E14] text-[#E6EDF3] font-sans selection:bg-[#EF4444] selection:text-black flex flex-col">
       <Header
@@ -138,64 +176,98 @@ export default function App() {
       />
 
       <main className="flex-1">
-        {currentScreen === 'landing' && <LandingScreen onNavigate={navigate} />}
+        <Routes>
+          <Route path="/" element={<LandingScreen onNavigate={navigate} />} />
 
-        {currentScreen === 'catalog' && (
-          <TaskCatalog
-            tasks={tasks}
-            onSelectTask={handleSelectTask}
-            onOpenProModal={() => setIsProModalOpen(true)}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <TaskCatalog
+                  tasks={tasks}
+                  onSelectTask={handleSelectTask}
+                  onOpenProModal={() => setIsProModalOpen(true)}
+                />
+              </ProtectedRoute>
+            }
           />
-        )}
 
-        {currentScreen === 'detail' && (
-          <TaskDetailScreen
-            task={selectedTask}
-            uploadedCad={uploadedCad && uploadedCad.taskId === selectedTask.id ? uploadedCad : null}
-            onUploadedCadChange={setUploadedCad}
-            onBackToCatalog={() => navigate('catalog')}
-            onProceedToSolution={handleProceedToSolution}
+          <Route
+            path="/workspace"
+            element={
+              <ProtectedRoute>
+                <TaskDetailScreen
+                  task={selectedTask}
+                  uploadedCad={uploadedCad && uploadedCad.taskId === selectedTask.id ? uploadedCad : null}
+                  onUploadedCadChange={setUploadedCad}
+                  onBackToCatalog={() => navigate('catalog')}
+                  onProceedToSolution={handleProceedToSolution}
+                />
+              </ProtectedRoute>
+            }
           />
-        )}
 
-        {currentScreen === 'solution' && (
-          <ExampleSolutionScreen
-            task={selectedTask}
-            uploadedCad={uploadedCad && uploadedCad.taskId === selectedTask.id ? uploadedCad : null}
-            onUploadedCadChange={setUploadedCad}
-            onBackToDetail={() => navigate('detail')}
-            onProceedToEvaluation={handleProceedToEvaluation}
+          <Route
+            path="/workspace/solution"
+            element={
+              <ProtectedRoute>
+                <ExampleSolutionScreen
+                  task={selectedTask}
+                  uploadedCad={uploadedCad && uploadedCad.taskId === selectedTask.id ? uploadedCad : null}
+                  onUploadedCadChange={setUploadedCad}
+                  onBackToDetail={() => navigate('detail')}
+                  onProceedToEvaluation={handleProceedToEvaluation}
+                />
+              </ProtectedRoute>
+            }
           />
-        )}
 
-        {currentScreen === 'evaluation' && (
-          <SelfEvaluationScreen
-            task={selectedTask}
-            onBackToSolution={() => navigate('solution')}
-            onCompleteAndAddToPortfolio={handleCompleteAndAddToPortfolio}
+          <Route
+            path="/workspace/evaluation"
+            element={
+              <ProtectedRoute>
+                <SelfEvaluationScreen
+                  task={selectedTask}
+                  onBackToSolution={() => navigate('solution')}
+                  onCompleteAndAddToPortfolio={handleCompleteAndAddToPortfolio}
+                />
+              </ProtectedRoute>
+            }
           />
-        )}
 
-        {currentScreen === 'portfolio' && (
-          <PortfolioScreen
-            user={user}
-            completedTasks={completedTasksList.length > 0 ? completedTasksList : [portfolioFallback]}
-            onOpenTask={(task) => {
-              setSelectedTask(task);
-              navigate('detail');
-            }}
+          <Route
+            path="/portfolio"
+            element={
+              <ProtectedRoute>
+                <PortfolioScreen
+                  user={user}
+                  completedTasks={completedTasksList.length > 0 ? completedTasksList : [portfolioFallback]}
+                  onOpenTask={(task) => {
+                    setSelectedTask(task);
+                    navigate('detail');
+                  }}
+                />
+              </ProtectedRoute>
+            }
           />
-        )}
 
-        {currentScreen === 'admin' && (
-          <AdminScreen
-            tasks={tasks}
-            onCreateTask={handleCreateTask}
-            onUpdateTask={handleUpdateTask}
-            onDeleteTask={handleDeleteTask}
-            onResetTasks={handleResetTasks}
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute requireAdmin>
+                <AdminPanel
+                  tasks={tasks}
+                  onCreateTask={handleCreateTask}
+                  onUpdateTask={handleUpdateTask}
+                  onDeleteTask={handleDeleteTask}
+                  onResetTasks={handleResetTasks}
+                />
+              </ProtectedRoute>
+            }
           />
-        )}
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
 
       <footer className="h-10 bg-[#0D1117] border-t border-[#30363D] px-6 flex items-center justify-between text-[11px] text-[#484F58] font-mono select-none">

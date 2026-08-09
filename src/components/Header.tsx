@@ -1,6 +1,8 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ScreenType, UserProfile } from '../types';
-import { Star, Crown, Briefcase, BookOpen, Shield } from 'lucide-react';
+import { Star, Crown, Briefcase, BookOpen, Shield, LogIn, LogOut } from 'lucide-react';
+import { useAuth } from '../auth/AuthContext';
 
 interface HeaderProps {
   currentScreen: ScreenType;
@@ -15,6 +17,14 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   onOpenProModal
 }) => {
+  const { user: authUser, isAdmin, logout } = useAuth();
+  const routerNavigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    routerNavigate('/', { replace: true });
+  };
+
   return (
     <header className="sticky top-0 z-50 bg-[#0D1117] border-b border-[#30363D] text-[#E6EDF3] shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -72,18 +82,20 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </button>
 
-            <button
-              onClick={() => onNavigate('admin')}
-              className={`px-3.5 py-2 rounded text-xs font-semibold transition flex items-center space-x-2 ${
-                currentScreen === 'admin'
-                  ? 'text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/30 font-bold'
-                  : 'text-[#8B949E] hover:text-white hover:bg-[#161B22]'
-              }`}
-              title="Admin Konsolu"
-            >
-              <Shield className="w-4 h-4" />
-              <span>Admin</span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => onNavigate('admin')}
+                className={`px-3.5 py-2 rounded text-xs font-semibold transition flex items-center space-x-2 ${
+                  currentScreen === 'admin'
+                    ? 'text-[#EF4444] bg-[#EF4444]/10 border border-[#EF4444]/30 font-bold'
+                    : 'text-[#8B949E] hover:text-white hover:bg-[#161B22]'
+                }`}
+                title="Admin Konsolu"
+              >
+                <Shield className="w-4 h-4" />
+                <span>Admin</span>
+              </button>
+            )}
           </nav>
 
           {/* Right Controls: XP/Level + Freemium Upgrade */}
@@ -108,6 +120,33 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden sm:inline">PRO'ya Yükselt</span>
               <span className="sm:hidden">PRO</span>
             </button>
+
+            {/* Oturum durumu */}
+            {authUser ? (
+              <div className="flex items-center space-x-2">
+                <span
+                  className="hidden lg:inline text-[11px] font-mono text-[#8B949E] max-w-[160px] truncate"
+                  title={authUser.email ?? undefined}
+                >
+                  {authUser.email}
+                </span>
+                <button
+                  onClick={() => void handleLogout()}
+                  title="Çıkış Yap"
+                  className="text-[#8B949E] hover:text-[#EF4444] border border-[#30363D] hover:border-[#EF4444]/50 rounded p-1.5 transition"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => routerNavigate('/login')}
+                className="text-[#E6EDF3] hover:text-white bg-[#161B22] hover:bg-[#1F262E] border border-[#30363D] hover:border-[#8B949E] font-bold text-xs px-3 py-1.5 rounded uppercase tracking-wider transition flex items-center space-x-1.5"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Giriş Yap</span>
+              </button>
+            )}
 
           </div>
         </div>
@@ -134,13 +173,15 @@ export const Header: React.FC<HeaderProps> = ({
           >
             Portföyüm ({user.completedTasksCount})
           </button>
-          <button
-            onClick={() => onNavigate('admin')}
-            className={`py-1 px-3 rounded flex items-center gap-1 ${currentScreen === 'admin' ? 'text-[#EF4444] font-bold' : 'text-[#8B949E]'}`}
-          >
-            <Shield className="w-3 h-3" />
-            Admin
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => onNavigate('admin')}
+              className={`py-1 px-3 rounded flex items-center gap-1 ${currentScreen === 'admin' ? 'text-[#EF4444] font-bold' : 'text-[#8B949E]'}`}
+            >
+              <Shield className="w-3 h-3" />
+              Admin
+            </button>
+          )}
         </div>
 
       </div>

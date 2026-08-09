@@ -79,7 +79,9 @@
       "Bash(taskkill //F //PID 22024)",
       "Bash(taskkill //F //PID 3272)",
       "Bash(curl -s -m 5 http://127.0.0.1:8000/)",
-      "Bash(curl -s -o /dev/null -w \"index-IUou5H8W.js -> HTTP %{http_code}, %{size_download} bytes\\\\n\" -m 15 http://127.0.0.1:8000/assets/index-IUou5H8W.js)"
+      "Bash(curl -s -o /dev/null -w \"index-IUou5H8W.js -> HTTP %{http_code}, %{size_download} bytes\\\\n\" -m 15 http://127.0.0.1:8000/assets/index-IUou5H8W.js)",
+      "Bash(py -3.13 -m pip install firebase-admin)",
+      "Bash(py -3.13 -c \"import backend.main; print\\('backend import OK'\\)\")"
     ]
   }
 }
