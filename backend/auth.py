@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any, Dict, Optional
 
 from .config import ROOT_DIR
@@ -54,17 +55,32 @@ class AuthError(Exception):
 # ------------------------------------------------------------- SDK baslatma
 _init_error: Optional[str] = None
 _initialized = False
+_last_attempt_at = 0.0
+
+# Basarisiz init'ten sonra yeniden denemeden once beklenecek sure. Hatayi kalici
+# olarak kilitlemiyoruz: sunucu calisirken serviceAccountKey.json eklenirse
+# uygulama yeniden baslatmaya gerek kalmadan kendini toparlamali.
+_RETRY_COOLDOWN_SECONDS = 5.0
 
 
 def _init_firebase() -> None:
-    """firebase-admin uygulamasini bir kez baslatir.
+    """firebase-admin uygulamasini baslatir (basarili olana kadar tekrar dener).
 
     Hata durumunda exception yerine `_init_error` doldurulur; boylece backend
     ayaga kalkar ve istek geldiginde net bir 503 mesaji dondurebiliriz.
     """
-    global _initialized, _init_error
-    if _initialized or _init_error:
+    global _initialized, _init_error, _last_attempt_at
+    if _initialized:
         return
+
+    # Yanlis yapilandirmada her istekte yeniden denemeyelim (ADC aramasi yavas
+    # olabilir); kisa bir bekleme suresi koyuyoruz.
+    now = time.monotonic()
+    if _init_error and (now - _last_attempt_at) < _RETRY_COOLDOWN_SECONDS:
+        return
+
+    _last_attempt_at = now
+    _init_error = None
 
     try:
         import firebase_admin
@@ -102,6 +118,9 @@ def _init_firebase() -> None:
         # kalir ve token dogrulamasi anlasilmaz bir ValueError ile patlar.
         # Bunu simdi yakalayip kurulum talimatini gosterelim.
         if not fb_app.project_id:
+            # Bozuk app kaydini sil; aksi halde sonraki denemede yukaridaki
+            # `if firebase_admin._apps` kontrolu bunu basarili sanardi.
+            firebase_admin.delete_app(fb_app)
             _init_error = (
                 "Firebase proje kimliği belirlenemedi (geçerli kimlik bilgisi yok). "
                 "serviceAccountKey.json dosyasını proje köküne koyun veya "
