@@ -106,6 +106,40 @@ derlenmiş arayüzü aynı porttan servis eder (SPA fallback dahil).
 
 ---
 
+## Yayına alma (Railway)
+
+Backend hem API'yi hem derlenmiş arayüzü tek porttan servis eder, tek servis yeter.
+
+**1. Arayüzü derleyip commit'le** — `backend/static/` repoda tutulur:
+
+```bash
+cd frontend && npm run build && cd ..
+git add backend/static && git commit -m "frontend build"
+```
+
+**2. Başlatma komutu** — `Procfile` içinde tanımlı:
+
+```
+web: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+```
+
+> Modül yolu `backend.app.main:app`. Railway panelinde eski `backend.main:app`
+> komutu ayarlıysa güncelleyin, yoksa servis açılmaz.
+
+**3. Ortam değişkenleri** (Railway → Variables):
+
+| Değişken | Zorunlu | Açıklama |
+|---|---|---|
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | evet | `serviceAccountKey.json` içeriğinin tamamı, tek satır JSON olarak. Dosya repoda olmadığı için tek yol budur. |
+| `OPENAI_API_KEY` | hayır | Boşsa LLM analizi devre dışı kalır, uygulama açılır. |
+| `MECHCODE_ADMIN_EMAILS` | önerilir | Virgülle ayrılmış admin e-postaları. |
+| `MECHCODE_AUTH_REQUIRED` | hayır | `false` yaparsanız API kimlik doğrulaması kapanır — **yayında kullanmayın**. |
+
+Doğrulama kayıtları `backend/data/verifications.json` içinde tutulur. Railway'in
+dosya sistemi kalıcı değildir: her deploy'da doğrulama kodları silinir. Kalıcı
+olması gerekiyorsa Railway Volume bağlayın ya da `store.py`'yi bir veritabanına
+taşıyın (arayüzü `save`/`get`/`recent` olarak sabit bırakıldı).
+
 ## Tasarım sistemi
 
 Tüm arayüz `frontend/src/index.css` içindeki token'lar üzerine kurulu:
