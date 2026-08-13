@@ -1,0 +1,331 @@
+import React, { useEffect, useState } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { ScreenType, Task, UploadedCad, UserProfile } from '@/types';
+import { INITIAL_TASKS, INITIAL_USER_PROFILE } from '@/data/tasks';
+
+import { Header } from '@/components/layout/Header';
+import { Footer } from '@/components/layout/Footer';
+import { FlowBreadcrumb } from '@/components/layout/FlowBreadcrumb';
+import { TaskStatusBar } from '@/components/layout/TaskStatusBar';
+
+import { LandingScreen } from '@/components/screens/LandingScreen';
+import { TaskCatalogScreen } from '@/components/screens/TaskCatalogScreen';
+import { TaskDetailScreen } from '@/components/screens/TaskDetailScreen';
+import { ExampleSolutionScreen } from '@/components/screens/ExampleSolutionScreen';
+import { SelfEvaluationScreen } from '@/components/screens/SelfEvaluationScreen';
+import { PortfolioScreen } from '@/components/screens/PortfolioScreen';
+import { PricingScreen } from '@/components/screens/PricingScreen';
+import { VerifyScreen } from '@/components/screens/VerifyScreen';
+import { AdminScreen } from '@/components/screens/AdminScreen';
+import { LoginScreen } from '@/components/screens/LoginScreen';
+
+import { ProUpgradeModal } from '@/components/ui/ProUpgradeModal';
+import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
+
+const TASKS_STORAGE_KEY = 'mechstudio_tasks_v1';
+const LEGACY_TASKS_STORAGE_KEY = 'forgelab_tasks_v1';
+
+/**
+ * Ekran adi <-> URL eslemesi.
+ *
+ * Uygulama ekran-state makinesiyle yazilmisti; react-router'a gecerken alt
+ * bilesenlerin (ozellikle Header'in) arayuzunu bozmamak icin `ScreenType`
+ * kavrami korunuyor ve yalnizca burada URL'e cevriliyor.
+ */
+const SCREEN_TO_PATH: Record<ScreenType, string> = {
+  landing: '/',
+  catalog: '/dashboard',
+  detail: '/workspace',
+  solution: '/workspace/solution',
+  evaluation: '/workspace/evaluation',
+  portfolio: '/portfolio',
+  pricing: '/pricing',
+  verify: '/dogrula',
+  admin: '/admin',
+};
+
+const pathToScreen = (pathname: string): ScreenType => {
+  if (pathname.startsWith('/dogrula')) return 'verify';
+  switch (pathname) {
+    case '/dashboard':
+      return 'catalog';
+    case '/workspace':
+      return 'detail';
+    case '/workspace/solution':
+      return 'solution';
+    case '/workspace/evaluation':
+      return 'evaluation';
+    case '/portfolio':
+      return 'portfolio';
+    case '/pricing':
+      return 'pricing';
+    case '/dogrula':
+      return 'verify';
+    case '/admin':
+      return 'admin';
+    default:
+      return 'landing';
+  }
+};
+
+/** Gorev akisinda alt durum seridi gosterilen ekranlar. */
+const TASK_FLOW_SCREENS: ScreenType[] = ['detail', 'solution', 'evaluation'];
+
+const loadTasksFromStorage = (): Task[] => {
+  try {
+    // Marka degisikliginden once kaydedilmis gorevler kaybolmasin.
+    const raw =
+      localStorage.getItem(TASKS_STORAGE_KEY) ?? localStorage.getItem(LEGACY_TASKS_STORAGE_KEY);
+    if (!raw) return INITIAL_TASKS;
+    const parsed = JSON.parse(raw) as Task[];
+    if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_TASKS;
+    return parsed;
+  } catch {
+    return INITIAL_TASKS;
+  }
+};
+
+const persistTasks = (tasks: Task[]) => {
+  try {
+    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
+  } catch {
+    // storage full or disabled — silently ignore for MVP
+  }
+};
+
+export default function App() {
+  const location = useLocation();
+  const routerNavigate = useNavigate();
+
+  const [tasks, setTasks] = useState<Task[]>(loadTasksFromStorage);
+  const [selectedTask, setSelectedTask] = useState<Task>(() => loadTasksFromStorage()[0]);
+  const [user, setUser] = useState<UserProfile>(INITIAL_USER_PROFILE);
+  const [isProModalOpen, setIsProModalOpen] = useState<boolean>(false);
+  const [completedTaskIds, setCompletedTaskIds] = useState<string[]>(['task-1']);
+  const [uploadedCad, setUploadedCad] = useState<UploadedCad | null>(null);
+
+  const currentScreen = pathToScreen(location.pathname);
+  const isLoginPage = location.pathname === '/login';
+
+  useEffect(() => {
+    persistTasks(tasks);
+  }, [tasks]);
+
+  const navigate = (screen: ScreenType) => {
+    routerNavigate(SCREEN_TO_PATH[screen]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSelectTask = (task: Task) => {
+    setSelectedTask(task);
+    if (!uploadedCad || uploadedCad.taskId !== task.id) {
+      setUploadedCad(null);
+    }
+    navigate('detail');
+  };
+
+  const handleProceedToSolution = () => navigate('solution');
+  const handleProceedToEvaluation = () => navigate('evaluation');
+
+  const handleCompleteAndAddToPortfolio = (score: number) => {
+    if (!completedTaskIds.includes(selectedTask.id)) {
+      setCompletedTaskIds(prev => [...prev, selectedTask.id]);
+
+      setUser(prev => ({
+        ...prev,
+        xp: prev.xp + 50,
+        completedTasksCount: prev.completedTasksCount + 1,
+        level: Math.floor((prev.xp + 50) / 100) + 1,
+      }));
+
+      setTasks(prev =>
+        prev.map(t => (t.id === selectedTask.id ? { ...t, status: 'completed' } : t))
+      );
+    }
+
+    navigate('portfolio');
+  };
+
+  const handleUpgradePro = () => {
+    setUser(prev => ({ ...prev, isPro: true }));
+    setTasks(prev => prev.map(t => ({ ...t, isPremium: false })));
+  };
+
+  // Admin CRUD handlers
+  const handleCreateTask = (task: Task) => {
+    setTasks(prev => [...prev, task]);
+  };
+
+  const handleUpdateTask = (task: Task) => {
+    setTasks(prev => prev.map(t => (t.id === task.id ? task : t)));
+    if (selectedTask.id === task.id) setSelectedTask(task);
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    setTasks(prev => {
+      const next = prev.filter(t => t.id !== taskId);
+      if (selectedTask.id === taskId && next.length > 0) setSelectedTask(next[0]);
+      return next;
+    });
+    setCompletedTaskIds(prev => prev.filter(id => id !== taskId));
+  };
+
+  const handleResetTasks = () => {
+    setTasks(INITIAL_TASKS);
+    setSelectedTask(INITIAL_TASKS[0]);
+  };
+
+  const completedTasksList = tasks.filter(t => completedTaskIds.includes(t.id));
+  const portfolioFallback = tasks[0] || INITIAL_TASKS[0];
+  const showStatusBar = TASK_FLOW_SCREENS.includes(currentScreen);
+
+  // Login sayfasi kendi tam ekran duzenini kullanir (header/footer olmadan).
+  if (isLoginPage) {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginScreen />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0f1f3d] text-[#f1f5f9] font-sans flex flex-col selection:bg-[#e05a00] selection:text-white">
+      <Header
+        currentScreen={currentScreen}
+        onNavigate={navigate}
+        user={user}
+        onOpenProModal={() => setIsProModalOpen(true)}
+      />
+
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {currentScreen !== 'landing' && (
+          <FlowBreadcrumb currentScreen={currentScreen} onNavigate={navigate} />
+        )}
+
+        <Routes>
+          <Route path="/" element={<LandingScreen tasks={tasks} onNavigate={navigate} onSelectTask={handleSelectTask} />} />
+
+          <Route
+            path="/pricing"
+            element={<PricingScreen isPro={user.isPro} onUpgrade={handleUpgradePro} />}
+          />
+
+          {/*
+            Bağımsız kontrol ekranı KASITLI olarak ProtectedRoute dışındadır:
+            dışarıdan biri (işveren, akademisyen, aday) hesap açmadan dosya
+            kontrol ettirebilsin ve elindeki doğrulama kodunu sorgulayabilsin.
+          */}
+          <Route path="/dogrula" element={<VerifyScreen tasks={tasks} />} />
+          <Route path="/dogrula/:code" element={<VerifyScreen tasks={tasks} />} />
+
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <TaskCatalogScreen
+                  tasks={tasks}
+                  completedTaskIds={completedTaskIds}
+                  isPro={user.isPro}
+                  onSelectTask={handleSelectTask}
+                  onOpenProModal={() => setIsProModalOpen(true)}
+                />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/workspace"
+            element={
+              <ProtectedRoute>
+                <TaskDetailScreen
+                  task={selectedTask}
+                  uploadedCad={uploadedCad && uploadedCad.taskId === selectedTask.id ? uploadedCad : null}
+                  onUploadedCadChange={setUploadedCad}
+                  onBackToCatalog={() => navigate('catalog')}
+                  onProceedToSolution={handleProceedToSolution}
+                />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/workspace/solution"
+            element={
+              <ProtectedRoute>
+                <ExampleSolutionScreen
+                  task={selectedTask}
+                  uploadedCad={uploadedCad && uploadedCad.taskId === selectedTask.id ? uploadedCad : null}
+                  onUploadedCadChange={setUploadedCad}
+                  onBackToDetail={() => navigate('detail')}
+                  onProceedToEvaluation={handleProceedToEvaluation}
+                />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/workspace/evaluation"
+            element={
+              <ProtectedRoute>
+                <SelfEvaluationScreen
+                  task={selectedTask}
+                  onBackToSolution={() => navigate('solution')}
+                  onCompleteAndAddToPortfolio={handleCompleteAndAddToPortfolio}
+                />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/portfolio"
+            element={
+              <ProtectedRoute>
+                <PortfolioScreen
+                  user={user}
+                  completedTasks={completedTasksList.length > 0 ? completedTasksList : [portfolioFallback]}
+                  onOpenTask={(task) => {
+                    setSelectedTask(task);
+                    navigate('detail');
+                  }}
+                />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute requireAdmin>
+                <AdminScreen
+                  tasks={tasks}
+                  onCreateTask={handleCreateTask}
+                  onUpdateTask={handleUpdateTask}
+                  onDeleteTask={handleDeleteTask}
+                  onResetTasks={handleResetTasks}
+                />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+
+      {showStatusBar && (
+        <TaskStatusBar task={selectedTask} currentScreen={currentScreen} onNavigate={navigate} />
+      )}
+
+      <Footer onNavigate={navigate} />
+
+      <ProUpgradeModal
+        isOpen={isProModalOpen}
+        onClose={() => setIsProModalOpen(false)}
+        onUpgradeSuccess={handleUpgradePro}
+        onSeeAllPlans={() => {
+          setIsProModalOpen(false);
+          navigate('pricing');
+        }}
+      />
+    </div>
+  );
+}

@@ -1,0 +1,6 @@
+{
+  "name": "MECHSTUDIO - Mühendislik Pratik & Portföy Platformu",
+  "description": "Gerçek Mühendislik Görevleri, Teknik Resim Okuma, Örnek Çözümler ve Mühendislik Portföy Platformu",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -137,7 +137,8 @@
       "Bash(.venv/bin/pip install *)",
       "Bash(awk '{print $NF, $5}')",
       "Bash(.venv/bin/python *)",
-      "Bash(grep -oE \"\\(sk-[A-Za-z0-9_-]{10,}|AIza[A-Za-z0-9_-]{20,}\\)\" .env.example)"
+      "Bash(grep -oE \"\\(sk-[A-Za-z0-9_-]{10,}|AIza[A-Za-z0-9_-]{20,}\\)\" .env.example)",
+      "Bash(git checkout *)"
     ]
   }
 }

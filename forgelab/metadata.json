@@ -1,6 +1,0 @@
-{
-  "name": "ForgeLab",
-  "description": "Makine mühendisliği öğrencileri için pratik teknik resim, CAD ve portföy geliştirme platformu.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

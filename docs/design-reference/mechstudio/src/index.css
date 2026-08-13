@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #0f1f3d;
+    color: #f1f5f9;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+/* Immersive UI Specific Classes */
+.bg-immersive-canvas {
+  background-color: #0f1f3d;
+}
+
+.bg-immersive-panel {
+  background-color: #0a162b;
+}
+
+.bg-immersive-card {
+  background-color: #162a4e;
+}
+
+.border-immersive {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.border-immersive-subtle {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Engineering Technical Blueprint Grid */
+.bg-blueprint-grid {
+  background-color: #0a162b;
+  background-image: 
+    linear-gradient(rgba(224, 90, 0, 0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(224, 90, 0, 0.15) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px, 40px 40px, 10px 10px, 10px 10px;
+  background-position: -1px -1px, -1px -1px, -1px -1px, -1px -1px;
+}
+
+.bg-drawing-grid {
+  background-color: #f8fafc;
+  background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+  background-size: 20px 20px;
+}
+
+/* Custom engineering scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a162b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e3a6a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #e05a00;
+}
+
+.glow-orange {
+  box-shadow: 0 0 20px rgba(224, 90, 0, 0.3);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.25);
+}
+
+

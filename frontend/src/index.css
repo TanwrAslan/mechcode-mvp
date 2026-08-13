@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   MECHSTUDIO — IMMERSIVE ENGINEERING UI
+   Tasarim kaynagi: docs/design-reference/mechstudio
+   Tum ekranlar bu token'lari kullanir; ham hex yazmak yerine
+   `bg-panel`, `text-accent`, `border-hairline` gibi siniflari tercih edin.
+   ========================================================================== */
+
+@theme {
+  /* Yuzeyler — koyu laciverte dayali 4 kademeli derinlik */
+  --color-canvas: #0f1f3d;
+  --color-panel: #0a162b;
+  --color-card: #162a4e;
+  --color-card-hover: #1a335f;
+  --color-void: #050d1c;
+
+  /* Vurgu — mühendislik turuncusu */
+  --color-accent: #e05a00;
+  --color-accent-hover: #ff6a00;
+
+  /* Metin kademeleri */
+  --color-ink: #f1f5f9;
+  --color-ink-muted: #94a3b8;
+  --color-ink-dim: #64748b;
+
+  /* Teknik resim / blueprint cizgileri */
+  --color-blueprint: #22d3ee;
+  --color-blueprint-dim: #0284c7;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+      Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+/* --------------------------------------------------------------- Yuzeyler */
+.bg-immersive-canvas { background-color: var(--color-canvas); }
+.bg-immersive-panel  { background-color: var(--color-panel); }
+.bg-immersive-card   { background-color: var(--color-card); }
+
+.border-immersive        { border-color: rgb(255 255 255 / 0.10); }
+.border-immersive-subtle { border-color: rgb(255 255 255 / 0.05); }
+
+/* ------------------------------------------------- Teknik blueprint izgara */
+.bg-blueprint-grid {
+  background-color: var(--color-panel);
+  background-image:
+    linear-gradient(rgba(224, 90, 0, 0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(224, 90, 0, 0.15) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px, 40px 40px, 10px 10px, 10px 10px;
+  background-position: -1px -1px, -1px -1px, -1px -1px, -1px -1px;
+}
+
+/* Acik zeminli olcu paftasi (kagit hissi) */
+.bg-drawing-grid {
+  background-color: #f8fafc;
+  background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+  background-size: 20px 20px;
+}
+
+/* --------------------------------------------------------------- Parlama */
+.glow-orange { box-shadow: 0 0 20px rgba(224, 90, 0, 0.30); }
+.glow-cyan   { box-shadow: 0 0 20px rgba(34, 211, 238, 0.25); }
+
+/* ------------------------------------------------------ Muhendislik kaydirici */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--color-panel); }
+::-webkit-scrollbar-thumb {
+  background: #1e3a6a;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
+
+/* ------------------------------------------------------------- Animasyonlar */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.35s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fadeIn { animation: none; }
+}

@@ -1,0 +1,131 @@
+=====================================================
+ MECHSTUDIO - CALISTIRMA TALIMATI
+=====================================================
+
+GEREKLI PROGRAMLAR
+------------------
+1) Node.js 18 veya uzeri   -> https://nodejs.org
+2) Python 3.11 veya uzeri  -> https://python.org
+   (Bilgisayarinda Python 3.13 zaten kurulu, "py" komutuyla erisiliyor)
+
+
+DIZIN YAPISI (ONEMLI - DEGISTI)
+-------------------------------
+Proje artik iki bagimsiz parcaya ayrildi:
+
+    mechcode\
+      frontend\   <- React arayuz (npm komutlari BURADA calisir)
+      backend\    <- Python API   (uvicorn komutu KOK dizinden calisir)
+      scripts\    <- baslatma dosyalari
+      docs\       <- dokumanlar
+      uploads\    <- yuklenen STEP/PDF dosyalari
+
+
+ILK KURULUM (sadece 1 kez yapilir)
+----------------------------------
+Proje klasorunde bir terminal ac:
+
+    py -3.13 -m pip install -r requirements.txt
+
+Sonra frontend klasorune gecip:
+
+    cd frontend
+    npm install
+
+NOT: Bilgisayarindaki varsayilan "python" komutu eski (3.7).
+     O yuzden "pip install" yerine mutlaka "py -3.13 -m pip install" kullan.
+
+NOT 2: "npm install" artik KOK dizinde degil, frontend\ icinde calistirilir.
+
+
+API ANAHTARI (.env) - ZORUNLU
+-----------------------------
+Proje KOK klasorundeki .env dosyasini Not Defteri ile ac ve anahtari yaz:
+
+    OPENAI_API_KEY=sk-....buraya-kendi-anahtarin....
+
+Anahtar almak icin: https://platform.openai.com/api-keys
+(MVP'de analizler mock calistigi icin anahtar gecerli olmasa bile
+ bir deger yazilmis olmasi yeterlidir.)
+
+
+CALISTIRMA (her seferinde) - GELISTIRME MODU
+--------------------------------------------
+2 ayri terminal acman gerekiyor:
+
+  TERMINAL 1 - BACKEND (proje KOK dizininde):
+    scripts\start-backend.bat
+  veya elle:
+    py -3.13 -m uvicorn backend.app.main:app --reload --port 8000
+
+  TERMINAL 2 - FRONTEND (frontend\ dizininde):
+    cd frontend
+    npm run dev
+
+Sonra tarayicida su adresi ac:
+
+    http://localhost:3000
+
+
+TEK PORTTAN CALISTIRMA (YAYIN MODU)
+-----------------------------------
+Arayuzu derleyip backend'e birak; tek terminal yeterli olur:
+
+    cd frontend
+    npm run build          -> cikti backend\static\ icine yazilir
+    cd ..
+    scripts\start-backend.bat
+
+Sonra:  http://localhost:8000
+
+
+SAYFALAR
+--------
+  /                      Ana sayfa (tanitim + nasil calisir + one cikan gorevler)
+  /dashboard             Gorev kutuphanesi (arama + zorluk + beceri filtresi)
+  /workspace             Gorev detayi: baglam, brief, teknik resim, CAD yukleme
+  /workspace/solution    Aciklamali ornek cozum + DFM/LLM rapor karti + PDF
+  /workspace/evaluation  Oz degerlendirme kontrol listesi
+  /portfolio             Isverene gonderilebilir portfoy
+  /pricing               Ucretsiz / Pro plan karsilastirmasi
+  /admin                 Admin konsolu (yalnizca yetkili e-postalar)
+  /login                 Giris / kayit
+  /dogrula               BAGIMSIZ KONTROL - oturum GEREKMEZ
+                         - CAD dosyasi kontrol ettirme (gorev sec + STEP yukle)
+                         - Dogrulama kodu sorgulama (isveren teyidi)
+  /dogrula/MS-XXXX-XXXX  Bir raporu koduyla acar
+
+
+GOREV EKLEME (admin)
+--------------------
+1) /admin sayfasinda "Yeni Gorev Ekle"
+2) Gorev PDF'ini yukle (Desktop\Tasks icindekiler)
+3) "Otomatik Kontrol Sartnamesi" bolumunu ac
+4) PDF'teki "Temel olculer (ozet)" satirini yapistirip
+   "Kunyeyi Ayristir" butonuna bas -> alanlar otomatik dolar
+5) Hedef KUTLE'yi referans cozumun CAD'inden oku ve elle gir
+   (SolidWorks -> Evaluate -> Mass Properties)
+6) Kaydet
+
+Ogrenci STEP yukledigi anda model tarayicisinda olculur ve bu hedeflerle
+madde madde karsilastirilir; sonuc paylasilabilir bir kodla belgelenir.
+
+
+SORUN GIDERME
+-------------
+- "Backend'e baglanilamadi" uyarisi goruyorsan:
+  Terminal 1'deki backend calismiyor demektir. Backend'i baslat.
+
+- "Lütfen .env dosyasına OPENAI_API_KEY ekleyin" hatasi:
+  .env dosyasina anahtar yazilmamis. Yukaridaki adimi yap.
+
+- "Cannot find native binding" / rollup hatasi (npm build sirasinda):
+  node_modules baska bir isletim sisteminde kurulmus demektir.
+  frontend\node_modules ve frontend\package-lock.json silinip
+  "npm install" tekrar calistirilmali.
+
+- Port 3000 veya 8000 doluysa:
+  Eski terminalleri kapat, tekrar baslat.
+
+- Yuklenen dosyalar uploads\ klasorunde birikir, silinebilir.
+=====================================================

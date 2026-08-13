@@ -1,15 +1,30 @@
 node_modules/
 __pycache__/
+*.pyc
+.venv/
+venv/
+
 uploads/*
 !uploads/.gitkeep
+
 build/
 dist/
 coverage/
 .DS_Store
 *.log
+
 .env*
 !.env.example
 
 # Firebase Admin SDK service account anahtari — GIZLI, asla commit edilmez
 serviceAccountKey.json
 *-firebase-adminsdk-*.json
+
+# Tasarim referansi (docs/design-reference) icindeki bagimliliklar
+docs/design-reference/**/node_modules/
+
+# Dogrulama kayit deposu (calisma zamani verisi)
+backend/data/
+
+# Yerel test sanal ortami
+.venv-test/
