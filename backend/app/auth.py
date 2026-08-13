@@ -149,6 +149,17 @@ def _init_firebase() -> None:
         )
 
 
+def ensure_firebase_ready() -> Optional[str]:
+    """Firebase Admin SDK'yi baslatir.
+
+    Basarili olursa None, aksi halde hata metni doner. `db.py` Firestore
+    istemcisini acmadan once bunu cagirir — Firestore ayni uygulama ornegini
+    kullanir, ikinci kez kimlik dogrulamak gerekmez.
+    """
+    _init_firebase()
+    return _init_error
+
+
 def verify_id_token(authorization_header: Optional[str]) -> Dict[str, Any]:
     """Authorization basligindaki Firebase ID token'i dogrular.
 

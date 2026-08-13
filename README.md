@@ -202,6 +202,32 @@ Oturum **gerektirmez** (`auth.PUBLIC_API_PREFIXES`). İki işlevi var:
   raporun aslını görür. Rapor sunucuda saklandığı için sonradan değiştirilemez.
   PDF çıktısı `/api/verification/<kod>/pdf` üzerinden alınır.
 
+### Veri nerede duruyor
+
+Görev kataloğu ve doğrulama kayıtları **sunucuda** tutulur — admin'in eklediği
+görevi bütün kullanıcılar görür. `backend/app/db.py` iki arka uç destekler ve
+hangisinin çalıştığını kendisi seçer:
+
+| Arka uç | Ne zaman | Kalıcılık |
+|---|---|---|
+| **Firestore** | Firebase kimlik bilgisi varsa | ✅ kalıcı — Railway'de bunu kullanın |
+| JSON dosyası | Firestore yoksa/kapalıysa | ⚠️ Railway'de her deploy'da silinir |
+
+Hangisinin aktif olduğu `/api/health` yanıtındaki `storage` alanında görünür.
+
+> **Firestore'u açmak için:** Firebase Console → Firestore Database →
+> *Veritabanı oluştur*. Açık değilse ilk sorguda anlaşılır, uygulama çökmez;
+> dosya yedeğine düşer ve `/api/health` içinde `storageWarning` ile bildirir.
+
+Katalog boşken `backend/app/seed_tasks.json` ile bir kez tohumlanır. Bu dosya
+frontend'deki `INITIAL_TASKS`'tan üretilmiştir; güncellemek için:
+
+```bash
+cd frontend
+npx tsx -e "import {INITIAL_TASKS} from './src/data/tasks'; \
+  require('fs').writeFileSync('../backend/app/seed_tasks.json', JSON.stringify(INITIAL_TASKS,null,1))"
+```
+
 ### Görev ekleme (admin)
 
 `/admin` → **Yeni Görev Ekle** formunda:

@@ -27,7 +27,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
-from . import store
+from . import store, task_store
+from . import db
 from .auth import AUTH_REQUIRED, AuthError, is_admin, is_public_path, verify_id_token
 from .config import require_openai_key
 from .data import TASKS, get_task, get_user
@@ -110,11 +111,58 @@ class SavePortfolioRequest(BaseModel):
 
 
 @app.get("/api/health")
-def health() -> Dict[str, str]:
-    return {"status": "ok", "service": "mechstudio-api"}
+def health() -> Dict[str, Any]:
+    return {
+        "status": "ok",
+        "service": "mechstudio-api",
+        "storage": db.backend_name(),
+        "storageWarning": db.backend_warning(),
+    }
 
 
-# ---------------------------------------------------------------- Gorevler
+# ================================================================== Gorevler
+# Katalog SUNUCUDA saklanir (bkz. task_store). Onceden yalnizca tarayicinin
+# localStorage'indaydi; admin'in ekledigi gorevi baska kimse goremiyordu.
+
+
+@app.get("/api/catalog")
+def catalog():
+    """Ogrenciye gosterilen gorev katalogu."""
+    return task_store.list_tasks()
+
+
+@app.get("/api/catalog/{task_id}")
+def catalog_task(task_id: str):
+    task = task_store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Görev bulunamadı")
+    return task
+
+
+@app.put("/api/admin/catalog/{task_id}")
+def upsert_catalog_task(task_id: str, task: Dict[str, Any]):
+    """Gorev ekler veya gunceller (yalnizca admin)."""
+    task["id"] = task_id
+    try:
+        return task_store.save_task(task)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.delete("/api/admin/catalog/{task_id}")
+def delete_catalog_task(task_id: str):
+    if not task_store.delete_task(task_id):
+        raise HTTPException(status_code=404, detail="Görev bulunamadı")
+    return {"ok": True, "deleted": task_id}
+
+
+@app.post("/api/admin/catalog/reset")
+def reset_catalog():
+    """Katalogu paketlenmis varsayilanlara dondurur (yalnizca admin)."""
+    return task_store.reset_to_defaults()
+
+
+# --- Eski mock veri uclari (backend/data.py) — /api/analyze bunlari kullanir
 @app.get("/api/tasks")
 def list_tasks():
     return TASKS
@@ -249,12 +297,7 @@ class MeasurementPayload(BaseModel):
 
 class VerifyRequest(BaseModel):
     taskId: str
-    taskTitle: str
     fileName: str
-    # Sartname istemciden gelir: gorevler admin panelinden yonetiliyor ve
-    # tarayici belleginde tutuluyor. Gorevler veritabanina tasindiginda burasi
-    # `get_task(taskId)["verification"]` ile sunucu tarafindan okunmalidir.
-    spec: Dict[str, Any]
     measurement: MeasurementPayload
     submittedBy: str = "student"
     submitterLabel: Optional[str] = None
@@ -262,7 +305,14 @@ class VerifyRequest(BaseModel):
 
 @app.post("/api/verify")
 def verify_submission(payload: VerifyRequest):
-    if not payload.spec or not payload.spec.get("enabled"):
+    # Sartname SUNUCUDAN okunur. Istemciden alinsaydi gonderen kisi hedefleri
+    # kendi lehine degistirip gecerli bir dogrulama kodu uretebilirdi.
+    task = task_store.get_task(payload.taskId)
+    if not task:
+        raise HTTPException(status_code=404, detail="Görev bulunamadı.")
+
+    spec = task.get("verification") or {}
+    if not spec.get("enabled"):
         raise HTTPException(
             status_code=400,
             detail="Bu görev için otomatik kontrol şartnamesi tanımlanmamış.",
@@ -270,9 +320,9 @@ def verify_submission(payload: VerifyRequest):
 
     report = run_verification(
         task_id=payload.taskId,
-        task_title=payload.taskTitle,
+        task_title=task.get("title") or payload.taskId,
         file_name=payload.fileName,
-        spec=payload.spec,
+        spec=spec,
         measurement=payload.measurement.model_dump(),
         submitted_by=payload.submittedBy if payload.submittedBy in ("student", "guest") else "guest",
         submitter_label=payload.submitterLabel,

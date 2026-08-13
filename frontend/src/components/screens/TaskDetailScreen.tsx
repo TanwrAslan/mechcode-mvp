@@ -110,9 +110,7 @@ export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({
       try {
         const result = await verifySubmission({
           taskId: task.id,
-          taskTitle: task.title,
           fileName: file.name,
-          spec: task.verification,
           measurement,
           submittedBy: 'student',
         });

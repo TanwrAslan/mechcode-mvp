@@ -137,7 +137,21 @@
       "Bash(.venv/bin/pip install *)",
       "Bash(awk '{print $NF, $5}')",
       "Bash(.venv/bin/python *)",
-      "Bash(grep -oE \"\\(sk-[A-Za-z0-9_-]{10,}|AIza[A-Za-z0-9_-]{20,}\\)\" .env.example)"
+      "Bash(grep -oE \"\\(sk-[A-Za-z0-9_-]{10,}|AIza[A-Za-z0-9_-]{20,}\\)\" .env.example)",
+      "Bash(git checkout *)",
+      "Bash(awk '{a+=$1; d+=$2} END {print \"  +\" a \" / -\" d \" satır\"}')",
+      "Bash(git merge *)",
+      "Bash(git stash *)",
+      "Bash(awk '{print \\($1==2 ? \"  ✓ eşit\" : \"  ✗ farklı\"\\)}')",
+      "Bash(awk '{print \"  dosya:\", $5, \"bayt\"}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s http://127.0.0.1:8000/api/catalog)",
+      "Bash(python3 -c ' *)",
+      "Bash(MECHCODE_AUTH_REQUIRED=false .venv/bin/python *)",
+      "Bash(curl -s -w \"\\\\n[HTTP %{http_code}]\\\\n\" http://127.0.0.1:8000/api/catalog)",
+      "Bash(python3 -c \"import sys,json; print\\('  kaydedildi:', json.load\\(sys.stdin\\)['title']\\)\")",
+      "Bash(curl -s -X POST http://127.0.0.1:8000/api/verify -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl -s -X DELETE http://127.0.0.1:8000/api/admin/catalog/task-99)"
     ]
   }
 }

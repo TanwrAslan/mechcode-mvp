@@ -1,4 +1,4 @@
-import { EvaluationReport, MeasurementPayload, VerificationReport, VerificationSpec } from '@/types';
+import { EvaluationReport, MeasurementPayload, Task, VerificationReport } from '@/types';
 
 const API_BASE = '/api';
 
@@ -37,6 +37,48 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(detail);
   }
   return res.json() as Promise<T>;
+}
+
+// --------------------------------------------------------------------------
+// Görev katalogu — SUNUCU tek doğruluk kaynağıdır
+// --------------------------------------------------------------------------
+
+/** Katalogu sunucudan okur. Admin'in eklediği görevi herkes buradan görür. */
+export function fetchCatalog(): Promise<Task[]> {
+  return request<Task[]>('/catalog');
+}
+
+/** Görev ekler veya günceller (admin). */
+export function saveTask(task: Task): Promise<Task> {
+  return request<Task>(`/admin/catalog/${encodeURIComponent(task.id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(task),
+  });
+}
+
+/** Görevi siler (admin). */
+export function deleteTask(taskId: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/admin/catalog/${encodeURIComponent(taskId)}`, {
+    method: 'DELETE',
+  });
+}
+
+/** Katalogu paketlenmiş varsayılanlara döndürür (admin). */
+export function resetCatalog(): Promise<Task[]> {
+  return request<Task[]>('/admin/catalog/reset', { method: 'POST' });
+}
+
+export interface HealthInfo {
+  status: string;
+  service: string;
+  storage: 'firestore' | 'file';
+  storageWarning: string | null;
+}
+
+/** Sunucunun hangi depoyu kullandığını söyler (admin panelinde gösterilir). */
+export function fetchHealth(): Promise<HealthInfo> {
+  return request<HealthInfo>('/health');
 }
 
 export interface UploadResult {
@@ -79,14 +121,17 @@ export function analyzeFile(params: {
 // --------------------------------------------------------------------------
 
 /**
- * Ölçüm + şartnameyi backend'e gönderip madde madde doğrulama raporu alır.
+ * Ölçümü backend'e gönderip madde madde doğrulama raporu alır.
+ *
+ * Şartname GÖNDERİLMEZ; sunucu görevin kayıtlı şartnamesini kendisi okur.
+ * Aksi halde gönderen kişi hedefleri kendi lehine değiştirip geçerli bir
+ * doğrulama kodu üretebilirdi.
+ *
  * Bu uç PUBLIC'tir: misafir kullanıcı da oturum açmadan kontrol ettirebilir.
  */
 export function verifySubmission(params: {
   taskId: string;
-  taskTitle: string;
   fileName: string;
-  spec: VerificationSpec;
   measurement: MeasurementPayload;
   submittedBy?: 'student' | 'guest';
   submitterLabel?: string;

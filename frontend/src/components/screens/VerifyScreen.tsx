@@ -112,9 +112,7 @@ export const VerifyScreen: React.FC<VerifyScreenProps> = ({ tasks }) => {
       setStage('verifying');
       const result = await verifySubmission({
         taskId: selectedTask.id,
-        taskTitle: selectedTask.title,
         fileName: file.name,
-        spec: selectedTask.verification,
         measurement: {
           volumeCm3: measurement.volumeCm3,
           surfaceAreaMm2: measurement.surfaceAreaMm2,

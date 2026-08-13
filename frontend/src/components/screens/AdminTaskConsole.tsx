@@ -10,10 +10,11 @@ import { uploadFile } from '@/lib/api';
 
 interface AdminScreenProps {
   tasks: Task[];
-  onCreateTask: (task: Task) => void;
-  onUpdateTask: (task: Task) => void;
-  onDeleteTask: (taskId: string) => void;
-  onResetTasks: () => void;
+  /** Sunucuya yazar; hata firlatirsa konsol kullaniciya gosterir. */
+  onCreateTask: (task: Task) => Promise<void>;
+  onUpdateTask: (task: Task) => Promise<void>;
+  onDeleteTask: (taskId: string) => Promise<void>;
+  onResetTasks: () => Promise<void>;
 }
 
 type FormState = {
@@ -163,6 +164,8 @@ export const AdminTaskConsole: React.FC<AdminScreenProps> = ({
   const [flash, setFlash] = useState<string | null>(null);
   const [pdfUploading, setPdfUploading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   /** Görev PDF'ini backend'e yükler ve forma iliştirir. */
   const handleBriefPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -221,28 +224,44 @@ export const AdminTaskConsole: React.FC<AdminScreenProps> = ({
     setTimeout(() => setFlash(null), 2200);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.title.trim() || !form.shortDescription.trim()) {
-      showFlash('Başlık ve kısa açıklama zorunludur.');
+      setSaveError('Başlık ve kısa açıklama zorunludur.');
       return;
     }
 
-    if (editingId) {
-      const original = tasks.find(t => t.id === editingId);
-      onUpdateTask(formToTask({ ...form, id: editingId }, original));
-      showFlash('Görev güncellendi.');
-    } else {
-      onCreateTask(formToTask(form));
-      showFlash('Yeni görev eklendi.');
+    setSaving(true);
+    setSaveError(null);
+    try {
+      if (editingId) {
+        const original = tasks.find(t => t.id === editingId);
+        await onUpdateTask(formToTask({ ...form, id: editingId }, original));
+        showFlash('Görev sunucuya kaydedildi — tüm kullanıcılar görecek.');
+      } else {
+        await onCreateTask(formToTask(form));
+        showFlash('Yeni görev sunucuya eklendi — tüm kullanıcılar görecek.');
+      }
+      cancelEdit();
+    } catch (err) {
+      setSaveError(
+        err instanceof Error
+          ? `Sunucuya kaydedilemedi: ${err.message}`
+          : 'Sunucuya kaydedilemedi.'
+      );
+    } finally {
+      setSaving(false);
     }
-    cancelEdit();
   };
 
-  const handleDelete = (id: string) => {
-    onDeleteTask(id);
+  const handleDelete = async (id: string) => {
     setConfirmDelete(null);
-    showFlash('Görev silindi.');
-    if (editingId === id) cancelEdit();
+    try {
+      await onDeleteTask(id);
+      showFlash('Görev sunucudan silindi.');
+      if (editingId === id) cancelEdit();
+    } catch (err) {
+      setSaveError(err instanceof Error ? `Silinemedi: ${err.message}` : 'Silinemedi.');
+    }
   };
 
   return (
@@ -647,6 +666,13 @@ export const AdminTaskConsole: React.FC<AdminScreenProps> = ({
             onChange={v => setForm({ ...form, verification: v })}
           />
 
+          {saveError && (
+            <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/40 rounded px-3 py-2.5 text-xs text-red-300">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">{saveError}</span>
+            </div>
+          )}
+
           <div className="flex items-center justify-end gap-2 pt-4 border-t border-white/10">
             <button
               onClick={cancelEdit}
@@ -655,11 +681,14 @@ export const AdminTaskConsole: React.FC<AdminScreenProps> = ({
               Vazgeç
             </button>
             <button
-              onClick={handleSave}
-              className="bg-[#e05a00] hover:bg-[#ff6a00] text-white font-extrabold text-xs px-5 py-2 rounded uppercase tracking-wider transition shadow-[0_0_15px_rgba(224,90,0,0.25)] flex items-center space-x-1.5"
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className="bg-[#e05a00] hover:bg-[#ff6a00] disabled:opacity-50 text-white font-extrabold text-xs px-5 py-2 rounded uppercase tracking-wider transition shadow-[0_0_15px_rgba(224,90,0,0.25)] flex items-center space-x-1.5"
             >
-              <Save className="w-3.5 h-3.5" />
-              <span>{editingId ? 'Değişiklikleri Kaydet' : 'Görevi Oluştur'}</span>
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              <span>
+                {saving ? 'Sunucuya kaydediliyor…' : editingId ? 'Değişiklikleri Kaydet' : 'Görevi Oluştur'}
+              </span>
             </button>
           </div>
         </div>
@@ -686,7 +715,7 @@ export const AdminTaskConsole: React.FC<AdminScreenProps> = ({
                 Vazgeç
               </button>
               <button
-                onClick={() => handleDelete(confirmDelete)}
+                onClick={() => void handleDelete(confirmDelete)}
                 className="bg-red-600 hover:bg-red-700 text-white text-xs px-4 py-2 rounded font-bold uppercase tracking-wider"
               >
                 Evet, Sil
@@ -717,7 +746,12 @@ export const AdminTaskConsole: React.FC<AdminScreenProps> = ({
                 Vazgeç
               </button>
               <button
-                onClick={() => { onResetTasks(); setConfirmReset(false); showFlash('Varsayılan görevler geri yüklendi.'); cancelEdit(); }}
+                onClick={() => {
+                  setConfirmReset(false);
+                  void onResetTasks()
+                    .then(() => { showFlash('Varsayılan görevler sunucuya yazıldı.'); cancelEdit(); })
+                    .catch(err => setSaveError(err instanceof Error ? err.message : 'Sıfırlanamadı.'));
+                }}
                 className="bg-[#e05a00] hover:bg-[#ff6a00] text-white text-xs px-4 py-2 rounded font-bold uppercase tracking-wider"
               >
                 Sıfırla

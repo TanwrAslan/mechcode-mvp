@@ -20,10 +20,8 @@ import { AdminScreen } from '@/components/screens/AdminScreen';
 import { LoginScreen } from '@/components/screens/LoginScreen';
 
 import { ProUpgradeModal } from '@/components/ui/ProUpgradeModal';
+import * as api from '@/lib/api';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
-
-const TASKS_STORAGE_KEY = 'mechstudio_tasks_v1';
-const LEGACY_TASKS_STORAGE_KEY = 'forgelab_tasks_v1';
 
 /**
  * Ekran adi <-> URL eslemesi.
@@ -59,8 +57,6 @@ const pathToScreen = (pathname: string): ScreenType => {
       return 'portfolio';
     case '/pricing':
       return 'pricing';
-    case '/dogrula':
-      return 'verify';
     case '/admin':
       return 'admin';
     default:
@@ -71,25 +67,32 @@ const pathToScreen = (pathname: string): ScreenType => {
 /** Gorev akisinda alt durum seridi gosterilen ekranlar. */
 const TASK_FLOW_SCREENS: ScreenType[] = ['detail', 'solution', 'evaluation'];
 
-const loadTasksFromStorage = (): Task[] => {
+/**
+ * Gorev katalogu SUNUCUDA saklanir (`/api/catalog`).
+ *
+ * Onceden yalnizca localStorage'daydi: admin'in ekledigi gorevi baska hicbir
+ * kullanici goremiyordu. Artik sunucu tek dogruluk kaynagi; asagidaki yerel
+ * kopya yalnizca sunucuya ulasilamadiginda arayuzun bos kalmamasi icindir
+ * (salt okunur cevrimdisi yedek).
+ */
+const OFFLINE_CACHE_KEY = 'mechstudio_catalog_cache_v1';
+
+const readOfflineCache = (): Task[] => {
   try {
-    // Marka degisikliginden once kaydedilmis gorevler kaybolmasin.
-    const raw =
-      localStorage.getItem(TASKS_STORAGE_KEY) ?? localStorage.getItem(LEGACY_TASKS_STORAGE_KEY);
+    const raw = localStorage.getItem(OFFLINE_CACHE_KEY);
     if (!raw) return INITIAL_TASKS;
     const parsed = JSON.parse(raw) as Task[];
-    if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_TASKS;
-    return parsed;
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_TASKS;
   } catch {
     return INITIAL_TASKS;
   }
 };
 
-const persistTasks = (tasks: Task[]) => {
+const writeOfflineCache = (tasks: Task[]) => {
   try {
-    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
+    localStorage.setItem(OFFLINE_CACHE_KEY, JSON.stringify(tasks));
   } catch {
-    // storage full or disabled — silently ignore for MVP
+    // kota dolu olabilir — cevrimdisi yedek kritik degil
   }
 };
 
@@ -97,8 +100,9 @@ export default function App() {
   const location = useLocation();
   const routerNavigate = useNavigate();
 
-  const [tasks, setTasks] = useState<Task[]>(loadTasksFromStorage);
-  const [selectedTask, setSelectedTask] = useState<Task>(() => loadTasksFromStorage()[0]);
+  const [tasks, setTasks] = useState<Task[]>(readOfflineCache);
+  const [selectedTask, setSelectedTask] = useState<Task>(() => readOfflineCache()[0]);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [user, setUser] = useState<UserProfile>(INITIAL_USER_PROFILE);
   const [isProModalOpen, setIsProModalOpen] = useState<boolean>(false);
   const [completedTaskIds, setCompletedTaskIds] = useState<string[]>(['task-1']);
@@ -107,9 +111,28 @@ export default function App() {
   const currentScreen = pathToScreen(location.pathname);
   const isLoginPage = location.pathname === '/login';
 
+  // Katalogu sunucudan yukle — tek dogruluk kaynagi burasi.
   useEffect(() => {
-    persistTasks(tasks);
-  }, [tasks]);
+    let cancelled = false;
+    api
+      .fetchCatalog()
+      .then(serverTasks => {
+        if (cancelled || serverTasks.length === 0) return;
+        setTasks(serverTasks);
+        setSelectedTask(prev => serverTasks.find(t => t.id === prev?.id) ?? serverTasks[0]);
+        writeOfflineCache(serverTasks);
+        setCatalogError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setCatalogError(
+          err instanceof Error ? err.message : 'Görev kataloğu sunucudan alınamadı.'
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const navigate = (screen: ScreenType) => {
     routerNavigate(SCREEN_TO_PATH[screen]);
@@ -151,28 +174,39 @@ export default function App() {
     setTasks(prev => prev.map(t => ({ ...t, isPremium: false })));
   };
 
-  // Admin CRUD handlers
-  const handleCreateTask = (task: Task) => {
-    setTasks(prev => [...prev, task]);
+  // ---------------------------------------------------------- Admin CRUD
+  // Hepsi once SUNUCUYA yazar; basarisiz olursa hata yukari firlar ve admin
+  // konsolu kullaniciya gosterir. Yerel state yalnizca yazma basarili olunca
+  // guncellenir — ekranda gorunen sey ile veritabanindaki sey ayrilmaz.
+
+  const applyTasks = (next: Task[]) => {
+    setTasks(next);
+    writeOfflineCache(next);
   };
 
-  const handleUpdateTask = (task: Task) => {
-    setTasks(prev => prev.map(t => (t.id === task.id ? task : t)));
-    if (selectedTask.id === task.id) setSelectedTask(task);
+  const handleCreateTask = async (task: Task) => {
+    const saved = await api.saveTask(task);
+    applyTasks([...tasks.filter(t => t.id !== saved.id), saved]);
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    setTasks(prev => {
-      const next = prev.filter(t => t.id !== taskId);
-      if (selectedTask.id === taskId && next.length > 0) setSelectedTask(next[0]);
-      return next;
-    });
+  const handleUpdateTask = async (task: Task) => {
+    const saved = await api.saveTask(task);
+    applyTasks(tasks.map(t => (t.id === saved.id ? saved : t)));
+    if (selectedTask.id === saved.id) setSelectedTask(saved);
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    await api.deleteTask(taskId);
+    const next = tasks.filter(t => t.id !== taskId);
+    applyTasks(next);
+    if (selectedTask.id === taskId && next.length > 0) setSelectedTask(next[0]);
     setCompletedTaskIds(prev => prev.filter(id => id !== taskId));
   };
 
-  const handleResetTasks = () => {
-    setTasks(INITIAL_TASKS);
-    setSelectedTask(INITIAL_TASKS[0]);
+  const handleResetTasks = async () => {
+    const defaults = await api.resetCatalog();
+    applyTasks(defaults);
+    if (defaults.length > 0) setSelectedTask(defaults[0]);
   };
 
   const completedTasksList = tasks.filter(t => completedTaskIds.includes(t.id));
