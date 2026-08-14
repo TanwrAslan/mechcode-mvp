@@ -38,14 +38,20 @@ ADMIN_EMAILS = {
 }
 
 # Oturum gerektirmeyen yollar (saglik kontrolu ve CORS preflight).
-PUBLIC_API_PATHS = {"/api/health"}
+#
+# Gorev katalogunun OKUNMASI da aciktir: acilis sayfasi ve bagimsiz dogrulama
+# ekrani (/dogrula) oturum acmadan gorev listesine ihtiyac duyar. Katalog
+# icerigi zaten ogrenciye gosterilen gorev tanimidir, gizli degildir. YAZMA
+# uclari (/api/admin/catalog/...) yonetici yetkisi ister — bu onek "/api/catalog"
+# ile eslesmez.
+PUBLIC_API_PATHS = {"/api/health", "/api/catalog"}
 
 # Oturum gerektirmeyen yol ONEKLERI.
 #
 # Dis dogrulama akisi kasitli olarak aciktir: bir isveren ya da akademisyen
 # hesap acmadan bir dosyayi kontrol ettirebilmeli veya elindeki dogrulama
 # kodunu sorgulayabilmelidir.
-PUBLIC_API_PREFIXES = ("/api/verify", "/api/verification/")
+PUBLIC_API_PREFIXES = ("/api/verify", "/api/verification/", "/api/catalog/")
 
 
 def is_public_path(path: str) -> bool:

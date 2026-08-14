@@ -22,6 +22,7 @@ import { LoginScreen } from '@/components/screens/LoginScreen';
 import { ProUpgradeModal } from '@/components/ui/ProUpgradeModal';
 import * as api from '@/lib/api';
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute';
+import { useAuth } from '@/features/auth/AuthContext';
 
 /**
  * Ekran adi <-> URL eslemesi.
@@ -99,6 +100,7 @@ const writeOfflineCache = (tasks: Task[]) => {
 export default function App() {
   const location = useLocation();
   const routerNavigate = useNavigate();
+  const { user: authUser, loading: authLoading } = useAuth();
 
   const [tasks, setTasks] = useState<Task[]>(readOfflineCache);
   const [selectedTask, setSelectedTask] = useState<Task>(() => readOfflineCache()[0]);
@@ -111,8 +113,21 @@ export default function App() {
   const currentScreen = pathToScreen(location.pathname);
   const isLoginPage = location.pathname === '/login';
 
-  // Katalogu sunucudan yukle — tek dogruluk kaynagi burasi.
+  /*
+   * Katalogu sunucudan yukle — tek dogruluk kaynagi burasi.
+   *
+   * DIKKAT: Bu istek Firebase oturumu COZULMEDEN atilmamali. React alt
+   * bilesenlerin effect'lerini ust bilesenlerden ONCE calistirir; yani bu
+   * effect AuthProvider'in token saglayicisini baglamasindan once kosar ve
+   * `auth.currentUser` de sayfa yeni yuklendiginde henuz null'dur. Istek o an
+   * atilirsa Authorization basligi gitmez, sunucu 401 doner ve arayuz sessizce
+   * pakete gomulu varsayilan listeye duserdi — admin'in ekledigi gorev hicbir
+   * hesapta gorunmezdi. Bu yuzden `authLoading` bitene kadar bekliyoruz ve
+   * oturum degistiginde (giris/cikis) katalogu tazeliyoruz.
+   */
   useEffect(() => {
+    if (authLoading) return;
+
     let cancelled = false;
     api
       .fetchCatalog()
@@ -132,7 +147,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authLoading, authUser?.uid]);
 
   const navigate = (screen: ScreenType) => {
     routerNavigate(SCREEN_TO_PATH[screen]);
@@ -234,6 +249,18 @@ export default function App() {
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {currentScreen !== 'landing' && (
           <FlowBreadcrumb currentScreen={currentScreen} onNavigate={navigate} />
+        )}
+
+        {/*
+          Katalog sunucudan alinamadiysa bunu SOYLE. Sessizce varsayilan listeye
+          dusmek, admin'in ekledigi gorevin neden gorunmedigini gizliyordu.
+        */}
+        {catalogError && (
+          <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            <strong className="font-semibold">Görev kataloğu sunucudan alınamadı.</strong>{' '}
+            {catalogError} — şu an paket içindeki varsayılan liste gösteriliyor, yeni eklenen
+            görevler burada görünmez.
+          </div>
         )}
 
         <Routes>

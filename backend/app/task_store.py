@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -55,11 +56,24 @@ def ensure_seeded() -> None:
             _seed_done = True
 
 
+def _sort_key(task: Dict[str, Any]) -> tuple:
+    """Katalog sirasi: once acik `order`, sonra eklenme zamani, sonra id.
+
+    `order` sayisal karsilastirilir (metin olarak "10" < "9" olurdu). Eklenme
+    zamani olmayanlar paketlenmis tohum gorevleridir ve basta kalir; admin'in
+    sonradan ekledigi gorevler listenin SONUNA eklenir — id'ler `task-<zaman>`
+    bicimindedir ve alfabetik siralamada listenin ortasina dagilirlardi.
+    """
+    try:
+        order = float(task.get("order"))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        order = float("inf")
+    return (order, str(task.get("createdAt") or ""), str(task.get("id") or ""))
+
+
 def list_tasks() -> List[Dict[str, Any]]:
     ensure_seeded()
-    tasks = db.list_all(COLLECTION)
-    # Katalog sirasi kullaniciya tutarli gorunsun.
-    return sorted(tasks, key=lambda t: str(t.get("order", "")) + str(t.get("id", "")))
+    return sorted(db.list_all(COLLECTION), key=_sort_key)
 
 
 def get_task(task_id: str) -> Optional[Dict[str, Any]]:
@@ -71,6 +85,12 @@ def save_task(task: Dict[str, Any]) -> Dict[str, Any]:
     if not task.get("id"):
         raise ValueError("Görev kimliği (id) zorunludur.")
     ensure_seeded()
+
+    # Ilk kaydin zamanini koru: guncelleme katalog sirasini kaydirmasin.
+    if not task.get("createdAt"):
+        existing = db.get(COLLECTION, task["id"]) or {}
+        task["createdAt"] = existing.get("createdAt") or datetime.now(timezone.utc).isoformat()
+
     db.put(COLLECTION, task["id"], task)
     return task
 
