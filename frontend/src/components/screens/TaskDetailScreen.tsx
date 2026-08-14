@@ -1,139 +1,36 @@
 import React, { useState } from 'react';
-import { MeasurementPayload, Task, UploadedCad } from '@/types';
+import { Task } from '@/types';
 import { TechnicalDrawingViewer } from '@/components/viewers/TechnicalDrawingViewer';
-import { StepMeshViewer } from '@/components/viewers/StepMeshViewer';
-import { computeRealGeometry, isCadFile, parseCadToMeshes } from '@/lib/cadGeometry';
-import { measureMesh } from '@/lib/measure';
-import { openStoredFile, uploadFile, verifySubmission } from '@/lib/api';
-import { VerificationReportCard } from '@/components/verification/VerificationReportCard';
+import { openStoredFile } from '@/lib/api';
 import { useLanguage } from '@/features/i18n/LanguageContext';
 import {
   AlertTriangle,
   ArrowRight,
-  Box,
   CheckCircle2,
   ClipboardList,
+  ClipboardCheck,
   FileText,
   Info,
-  Loader2,
-  ShieldCheck,
-  Sparkles,
-  Upload,
 } from 'lucide-react';
 
 interface TaskDetailScreenProps {
   task: Task;
-  uploadedCad: UploadedCad | null;
-  onUploadedCadChange: (cad: UploadedCad | null) => void;
   onBackToCatalog: () => void;
-  onProceedToSolution: (uploadedFile?: string) => void;
+  onProceedToEvaluation: () => void;
 }
 
 export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({
   task,
-  uploadedCad,
-  onUploadedCadChange,
-  onProceedToSolution,
+  onProceedToEvaluation,
 }) => {
   const { t } = useLanguage();
-  const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const [completedSteps, setCompletedSteps] = useState<Record<number, boolean>>({});
-  const [viewMode, setViewMode] = useState<'shaded' | 'wireframe'>('shaded');
-  const [verifying, setVerifying] = useState<boolean>(false);
-  const [verifyError, setVerifyError] = useState<string | null>(null);
 
   const toggleStep = (index: number) => {
     setCompletedSteps(prev => ({ ...prev, [index]: !prev[index] }));
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadError(null);
-    setIsUploading(true);
-
-    const isCad = isCadFile(file.name);
-    let geometry: UploadedCad['geometry'];
-    let measurement: MeasurementPayload | undefined;
-    let parseFailed = false;
-
-    if (isCad) {
-      try {
-        const meshes = await parseCadToMeshes(file);
-        if (meshes && meshes.length > 0) {
-          geometry = computeRealGeometry(meshes);
-          const full = measureMesh(meshes);
-          measurement = {
-            volumeCm3: full.volumeCm3,
-            surfaceAreaMm2: full.surfaceAreaMm2,
-            boundingBoxMm: full.boundingBoxMm,
-            triangleCount: full.triangleCount,
-            watertight: full.watertight,
-            openEdgeCount: full.openEdgeCount,
-            minWallThicknessMm: full.minWallThicknessMm,
-            wallThicknessP5Mm: full.wallThicknessP5Mm,
-            holeCount: full.holeCount,
-            holeDiametersMm: full.holeDiametersMm,
-            minConcaveRadiusMm: full.minConcaveRadiusMm,
-            warnings: full.warnings,
-          };
-        } else {
-          parseFailed = true;
-        }
-      } catch {
-        parseFailed = true;
-      }
-    }
-
-    let fileId: string | undefined;
-    try {
-      const uploadResult = await uploadFile(file);
-      fileId = uploadResult.fileId;
-    } catch (err) {
-      // Backend erişilemezse frontend parse ile devam
-      setUploadError(
-        err instanceof Error
-          ? `Backend'e yüklenemedi: ${err.message} (yerel 3D önizleme çalışıyor)`
-          : 'Backend hatası (yerel 3D önizleme çalışıyor)'
-      );
-    }
-
-    onUploadedCadChange({ taskId: task.id, file, fileId, geometry, measurement, parseFailed });
-    setIsUploading(false);
-
-    // Görevde otomatik kontrol tanımlıysa ölçümü hemen şartnameyle karşılaştır.
-    if (measurement && task.verification?.enabled) {
-      setVerifying(true);
-      setVerifyError(null);
-      try {
-        const result = await verifySubmission({
-          taskId: task.id,
-          fileName: file.name,
-          measurement,
-          submittedBy: 'student',
-        });
-        onUploadedCadChange({
-          taskId: task.id, file, fileId, geometry, measurement, parseFailed,
-          verification: result,
-        });
-      } catch (err) {
-        setVerifyError(
-          err instanceof Error
-            ? `Otomatik kontrol yapılamadı: ${err.message}`
-            : 'Otomatik kontrol yapılamadı.'
-        );
-      } finally {
-        setVerifying(false);
-      }
-    }
-  };
-
-  const handleProceed = () => onProceedToSolution(uploadedCad?.file.name);
-
-  const currentFileName = uploadedCad?.file.name;
-  const hasParsedCad = !!uploadedCad?.geometry;
   const completedStepCount = Object.values(completedSteps).filter(Boolean).length;
   const stepProgress = task.steps.length
     ? Math.round((completedStepCount / task.steps.length) * 100)
@@ -169,11 +66,11 @@ export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({
           </div>
 
           <a
-            href="#upload"
+            href="#evaluate"
             className="px-4 py-2 bg-[#e05a00] hover:bg-[#ff6a00] text-white font-bold text-xs rounded shadow-lg shadow-[#e05a00]/20 flex items-center gap-2 transition-colors shrink-0"
           >
-            <Upload className="w-3.5 h-3.5" />
-            <span>{t({ tr: 'Çözümü Yükle', en: 'Upload Solution' })}</span>
+            <ClipboardCheck className="w-3.5 h-3.5" />
+            <span>{t({ tr: 'Kendini Değerlendir', en: 'Self-Evaluate' })}</span>
           </a>
         </div>
       </div>
@@ -262,7 +159,7 @@ export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({
                 type="button"
                 onClick={() =>
                   void openStoredFile(task.briefPdf!.fileId).catch(err =>
-                    setUploadError(err instanceof Error ? err.message : 'PDF açılamadı.')
+                    setPdfError(err instanceof Error ? err.message : 'PDF açılamadı.')
                   )
                 }
                 className="inline-flex items-center gap-1.5 bg-[#e05a00]/10 hover:bg-[#e05a00]/20 text-[#e05a00] border border-[#e05a00]/40 px-2.5 py-1 rounded text-[10px] font-mono font-bold normal-case transition-colors"
@@ -327,208 +224,39 @@ export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({
         </div>
       </section>
 
-      {/* --------------------------------------- E) ÇÖZÜM YÜKLE & 3D ÖNİZLEME */}
+      {/* ------------------------------- E) CEVAP ANAHTARI & DEĞERLENDİRME */}
       <section
-        id="upload"
+        id="evaluate"
         className="border border-white/10 bg-[#0a162b] rounded-xl p-6 md:p-8 space-y-6 shadow-2xl scroll-mt-24"
       >
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/10 pb-4">
-          <div>
-            <span className="text-xs font-mono text-[#e05a00] font-bold uppercase tracking-wider">
-              {t({ tr: 'SON AŞAMA / FINAL STEP', en: 'FINAL STEP / SON AŞAMA' })}
-            </span>
-            <h2 className="text-xl font-bold text-white mt-1">
-              {t({ tr: 'Çözümünü Yükle', en: 'Upload Your Solution' })}
-            </h2>
-            <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
-              {t({
-                tr: 'STEP/IGES yüklerseniz gerçek 3D önizleme, hacim ve bounding box anında hesaplanır; backend erişilirse DFM & LLM analizi tetiklenir.',
-                en: 'Upload STEP/IGES for a real 3D preview with instant volume and bounding box; if the backend is reachable, DFM & LLM analysis runs too.',
-              })}
-            </p>
-          </div>
-
-          <button
-            onClick={handleProceed}
-            className="px-4 py-2.5 rounded bg-[#162a4e] border border-[#e05a00]/50 hover:bg-[#1a335f] text-[#e05a00] font-bold text-xs transition-colors flex items-center gap-2 shrink-0"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>{t({ tr: 'Doğrudan Örnek Çözümü Gör', en: 'Skip to Reference Solution' })}</span>
-          </button>
+        <div className="border-b border-white/10 pb-4">
+          <span className="text-xs font-mono text-[#e05a00] font-bold uppercase tracking-wider">
+            {t({ tr: 'SON AŞAMA / FINAL STEP', en: 'FINAL STEP / SON AŞAMA' })}
+          </span>
+          <h2 className="text-xl font-bold text-white mt-1">
+            {t({ tr: 'Cevap Anahtarı ile Karşılaştır', en: 'Compare With The Answer Key' })}
+          </h2>
+          <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+            {t({
+              tr: 'Modelini kendi CAD programında tamamladıktan sonra değerlendirme ekranına geç: orada örnek çözümün teknik resmini/görselini görecek ve mühendislik kontrol maddelerini tek tek işaretleyerek puanını hesaplayacaksın.',
+              en: 'Finish the model in your own CAD tool, then move to the evaluation screen: you will see the reference solution drawing and score yourself against the engineering checklist.',
+            })}
+          </p>
         </div>
 
-        {/* Yukleme alani */}
-        <div className="border-2 border-dashed border-white/10 hover:border-[#e05a00] rounded-xl p-6 text-center bg-[#0f1f3d] transition-colors">
-          <input
-            type="file"
-            id="file-upload"
-            onChange={handleUpload}
-            accept=".step,.stp,.iges,.igs,.sldprt,.pdf,.dwg,.png"
-            className="hidden"
-          />
-          <label htmlFor="file-upload" className="cursor-pointer space-y-3 block">
-            <div className="w-10 h-10 rounded-full bg-[#162a4e] border border-white/10 flex items-center justify-center mx-auto text-[#e05a00]">
-              <Upload className="w-5 h-5" />
-            </div>
-
-            {isUploading ? (
-              <div className="text-xs text-[#e05a00] font-mono font-bold animate-pulse">
-                {t({
-                  tr: 'Dosya işleniyor: geometri parse ediliyor ve backend’e gönderiliyor…',
-                  en: 'Processing file: parsing geometry and sending to backend…',
-                })}
-              </div>
-            ) : currentFileName ? (
-              <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/40 px-3 py-1.5 rounded text-xs font-mono">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{t({ tr: 'Yüklendi', en: 'Uploaded' })}: {currentFileName}</span>
-                {uploadedCad?.fileId && (
-                  <span className="text-[10px] text-emerald-500/80">· ID: {uploadedCad.fileId.slice(0, 8)}</span>
-                )}
-              </div>
-            ) : (
-              <div>
-                <span className="text-xs font-semibold text-white block">
-                  {t({ tr: 'CAD veya PDF dosyanı sürükle ya da', en: 'Drag your CAD/PDF file or' })}{' '}
-                  <span className="text-[#e05a00] underline">{t({ tr: 'gözat', en: 'browse' })}</span>
-                </span>
-                <span className="text-[11px] text-slate-400 block mt-1 font-mono">
-                  .STEP · .STP · .IGES · .IGS · .SLDPRT · .PDF (max 25 MB)
-                </span>
-              </div>
-            )}
-          </label>
-        </div>
-
-        {uploadError && (
+        {pdfError && (
           <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/40 rounded p-3 text-xs text-amber-300">
             <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>{uploadError}</span>
+            <span>{pdfError}</span>
           </div>
         )}
 
-        {/* ---------------------------------------- OTOMATİK KONTROL SONUCU */}
-        {task.verification?.enabled && (verifying || verifyError || uploadedCad?.verification) && (
-          <div className="space-y-4 pt-2 border-t border-white/10">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#e05a00]">
-              <ShieldCheck className="w-4 h-4" />
-              <span>{t({ tr: 'Otomatik Kontrol', en: 'Automatic Verification' })}</span>
-            </div>
-
-            {verifying && (
-              <div className="flex items-center gap-2 text-xs text-cyan-400 font-mono py-6 justify-center bg-[#0f1f3d] border border-white/10 rounded-lg">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>
-                  {t({
-                    tr: 'Ölçümler teknik resimle karşılaştırılıyor…',
-                    en: 'Comparing measurements against the drawing…',
-                  })}
-                </span>
-              </div>
-            )}
-
-            {verifyError && (
-              <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/40 rounded p-3 text-xs text-amber-300">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span className="leading-relaxed">{verifyError}</span>
-              </div>
-            )}
-
-            {!verifying && uploadedCad?.verification && (
-              <VerificationReportCard report={uploadedCad.verification} />
-            )}
-          </div>
-        )}
-
-        {/* 3D onizleme + geometri kartlari */}
-        {uploadedCad && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-xs font-mono text-[#e05a00] uppercase font-bold flex items-center gap-2">
-                <Box className="w-4 h-4" />
-                <span>{t({ tr: 'Yüklenen Modelin 3D Önizlemesi', en: '3D Preview Of Your Model' })}</span>
-              </h3>
-              {hasParsedCad && (
-                <div className="bg-[#0f1f3d] border border-white/10 p-0.5 rounded flex text-[11px] font-mono">
-                  {(['shaded', 'wireframe'] as const).map(mode => (
-                    <button
-                      key={mode}
-                      onClick={() => setViewMode(mode)}
-                      className={`px-2.5 py-0.5 rounded transition-colors ${
-                        viewMode === mode ? 'bg-[#e05a00] text-white' : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {mode === 'shaded' ? 'Shaded' : 'Wireframe'}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {isCadFile(uploadedCad.file.name) && !uploadedCad.parseFailed ? (
-              <div className="relative w-full h-[380px] rounded-lg border border-white/10 overflow-hidden bg-[#050d1c]">
-                <StepMeshViewer
-                  file={uploadedCad.file}
-                  viewMode={viewMode}
-                  onParseError={() => onUploadedCadChange({ ...uploadedCad, parseFailed: true })}
-                />
-              </div>
-            ) : (
-              <div className="bg-[#0f1f3d] border border-dashed border-white/10 rounded-lg p-6 text-center text-xs text-slate-400">
-                {uploadedCad.parseFailed
-                  ? t({
-                      tr: 'Bu STEP/IGES dosyası parse edilemedi (AP203/AP214 önerilir). Yükleme sunucuya iletildi.',
-                      en: 'This STEP/IGES file could not be parsed (AP203/AP214 recommended). The upload still reached the server.',
-                    })
-                  : t({
-                      tr: 'PDF/SLDPRT gibi dosyalarda 3D önizleme yok — backend LLM analizi devam edecek.',
-                      en: 'No 3D preview for PDF/SLDPRT files — backend LLM analysis will still run.',
-                    })}
-              </div>
-            )}
-
-            {hasParsedCad && uploadedCad.geometry && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                <div className="bg-[#0f1f3d] border border-white/10 p-2.5 rounded text-center">
-                  <span className="text-[10px] text-slate-400 block font-mono">
-                    {t({ tr: 'Hacim (mesh)', en: 'Volume (mesh)' })}
-                  </span>
-                  <span className="text-xs font-bold text-cyan-400 font-mono mt-0.5 block">
-                    {uploadedCad.geometry.volumeCm3} cm³
-                  </span>
-                </div>
-                <div className="bg-[#0f1f3d] border border-white/10 p-2.5 rounded text-center">
-                  <span className="text-[10px] text-slate-400 block font-mono">Bounding Box</span>
-                  <span className="text-xs font-bold text-cyan-400 font-mono mt-0.5 block">
-                    {uploadedCad.geometry.boundingBoxMm.x} × {uploadedCad.geometry.boundingBoxMm.y} ×{' '}
-                    {uploadedCad.geometry.boundingBoxMm.z} mm
-                  </span>
-                </div>
-                <div className="bg-[#0f1f3d] border border-white/10 p-2.5 rounded text-center">
-                  <span className="text-[10px] text-slate-400 block font-mono">
-                    {t({ tr: 'Üçgen', en: 'Triangles' })}
-                  </span>
-                  <span className="text-xs font-bold text-cyan-400 font-mono mt-0.5 block">
-                    {uploadedCad.geometry.triangleCount.toLocaleString('tr-TR')}
-                  </span>
-                </div>
-                <div className="bg-[#0f1f3d] border border-white/10 p-2.5 rounded text-center">
-                  <span className="text-[10px] text-slate-400 block font-mono">
-                    {t({ tr: 'Kaynak', en: 'Source' })}
-                  </span>
-                  <span className="text-xs font-bold text-emerald-400 font-mono mt-0.5 block">real_mesh</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-end">
           <button
-            onClick={handleProceed}
+            onClick={onProceedToEvaluation}
             className="w-full sm:w-auto px-8 py-3.5 rounded bg-[#e05a00] hover:bg-[#ff6a00] text-white font-extrabold text-sm shadow-lg shadow-[#e05a00]/20 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 group"
           >
-            <span>{t({ tr: 'Açıklamalı Çözümü ve Cevap Anahtarını Gör', en: 'See Annotated Solution & Answer Key' })}</span>
+            <span>{t({ tr: 'Örnek Çözümü Gör & Kendini Değerlendir', en: 'See Reference Solution & Self-Evaluate' })}</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>

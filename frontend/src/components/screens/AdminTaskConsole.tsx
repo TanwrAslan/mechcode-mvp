@@ -39,6 +39,7 @@ type FormState = {
   criticalFactor: string;
   verification: VerificationSpec;
   briefPdf?: { fileId: string; originalName: string };
+  solutionPdf?: { fileId: string; originalName: string };
 };
 
 const EMPTY_FORM: FormState = {
@@ -63,6 +64,7 @@ const EMPTY_FORM: FormState = {
   criticalFactor: '',
   verification: defaultVerificationSpec(),
   briefPdf: undefined,
+  solutionPdf: undefined,
 };
 
 const taskToForm = (t: Task): FormState => ({
@@ -87,6 +89,7 @@ const taskToForm = (t: Task): FormState => ({
   criticalFactor: t.context.criticalFactor,
   verification: t.verification ?? defaultVerificationSpec(),
   briefPdf: t.briefPdf,
+  solutionPdf: t.solutionPdf,
 });
 
 const formToTask = (f: FormState, original?: Task): Task => {
@@ -128,6 +131,7 @@ const formToTask = (f: FormState, original?: Task): Task => {
     },
     steps: steps.length ? steps : ['Modelleme adımlarını eklemek için görevi düzenleyin.'],
     briefPdf: f.briefPdf,
+    solutionPdf: f.solutionPdf,
     verification: f.verification,
     exampleSolution: original?.exampleSolution || {
       title: `${f.title || 'Yeni Görev'} — Referans Çözüm`,
@@ -148,6 +152,52 @@ const formToTask = (f: FormState, original?: Task): Task => {
   };
 };
 
+/** Göreve iliştirilebilen dosya alanları. */
+type TaskFileField = 'briefPdf' | 'solutionPdf';
+
+interface TaskFileFieldProps {
+  inputId: string;
+  accept: string;
+  emptyHint: string;
+  uploading: boolean;
+  value?: { fileId: string; originalName: string };
+  onPick: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onClear: () => void;
+}
+
+/** Tek bir dosya alanının "seç / yüklendi / kaldır" kontrolü. */
+const TaskFileControl: React.FC<TaskFileFieldProps> = ({
+  inputId, accept, emptyHint, uploading, value, onPick, onClear,
+}) => (
+  <div className="flex flex-wrap items-center gap-3">
+    <input type="file" id={inputId} accept={accept} className="hidden" onChange={onPick} />
+    <label
+      htmlFor={inputId}
+      className="cursor-pointer bg-[#0a162b] border border-white/10 hover:border-[#e05a00]/60 text-slate-300 hover:text-white text-xs px-3.5 py-2 rounded font-semibold transition-colors flex items-center gap-2"
+    >
+      {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+      <span>{uploading ? 'Yükleniyor…' : 'Dosya Seç ve Yükle'}</span>
+    </label>
+
+    {value ? (
+      <span className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 text-xs px-3 py-1.5 rounded font-mono">
+        <FileText className="w-3.5 h-3.5" />
+        {value.originalName}
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-emerald-400/70 hover:text-white ml-1"
+          title="Kaldır"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </span>
+    ) : (
+      <span className="text-[11px] text-slate-500">{emptyHint}</span>
+    )}
+  </div>
+);
+
 export const AdminTaskConsole: React.FC<AdminScreenProps> = ({
   tasks,
   onCreateTask,
@@ -162,33 +212,33 @@ export const AdminTaskConsole: React.FC<AdminScreenProps> = ({
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
-  const [pdfUploading, setPdfUploading] = useState(false);
+  const [uploadingField, setUploadingField] = useState<TaskFileField | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  /** Görev PDF'ini backend'e yükler ve forma iliştirir. */
-  const handleBriefPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  /** Görev/çözüm dosyasını backend'e yükler ve forma iliştirir. */
+  const handleTaskFile = async (field: TaskFileField, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = ''; // aynı dosya tekrar seçilebilsin
     if (!file) return;
 
     setPdfError(null);
-    setPdfUploading(true);
+    setUploadingField(field);
     try {
       const result = await uploadFile(file);
       setForm(prev => ({
         ...prev,
-        briefPdf: { fileId: result.fileId, originalName: result.originalName },
+        [field]: { fileId: result.fileId, originalName: result.originalName },
       }));
     } catch (err) {
       setPdfError(
         err instanceof Error
-          ? `PDF yüklenemedi: ${err.message}. Backend çalışıyor mu?`
-          : 'PDF yüklenemedi.'
+          ? `Dosya yüklenemedi: ${err.message}. Backend çalışıyor mu?`
+          : 'Dosya yüklenemedi.'
       );
     } finally {
-      setPdfUploading(false);
-      e.target.value = ''; // aynı dosya tekrar seçilebilsin
+      setUploadingField(null);
     }
   };
 
@@ -611,46 +661,36 @@ export const AdminTaskConsole: React.FC<AdminScreenProps> = ({
             </label>
           </div>
 
-          {/* Görev PDF'i */}
-          <div className="pt-2 border-t border-white/10 space-y-3">
-            <span className="text-[11px] font-mono text-[#e05a00] font-bold uppercase tracking-widest">
-              Görev PDF'i (teknik resim + brief)
-            </span>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <input
-                type="file"
-                id="brief-pdf"
+          {/* Görev PDF'i + Örnek çözüm dosyası */}
+          <div className="pt-2 border-t border-white/10 space-y-5">
+            <div className="space-y-3">
+              <span className="text-[11px] font-mono text-[#e05a00] font-bold uppercase tracking-widest">
+                Görev PDF'i (teknik resim + brief)
+              </span>
+              <TaskFileControl
+                inputId="brief-pdf"
                 accept=".pdf"
-                className="hidden"
-                onChange={e => void handleBriefPdf(e)}
+                emptyHint="Desktop/Tasks içindeki görev PDF'ini yükleyin — öğrenci görev ekranından açabilir."
+                uploading={uploadingField === 'briefPdf'}
+                value={form.briefPdf}
+                onPick={e => void handleTaskFile('briefPdf', e)}
+                onClear={() => setForm({ ...form, briefPdf: undefined })}
               />
-              <label
-                htmlFor="brief-pdf"
-                className="cursor-pointer bg-[#0a162b] border border-white/10 hover:border-[#e05a00]/60 text-slate-300 hover:text-white text-xs px-3.5 py-2 rounded font-semibold transition-colors flex items-center gap-2"
-              >
-                {pdfUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                <span>{pdfUploading ? 'Yükleniyor…' : 'PDF Seç ve Yükle'}</span>
-              </label>
+            </div>
 
-              {form.briefPdf ? (
-                <span className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 text-xs px-3 py-1.5 rounded font-mono">
-                  <FileText className="w-3.5 h-3.5" />
-                  {form.briefPdf.originalName}
-                  <button
-                    type="button"
-                    onClick={() => setForm({ ...form, briefPdf: undefined })}
-                    className="text-emerald-400/70 hover:text-white ml-1"
-                    title="Kaldır"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </span>
-              ) : (
-                <span className="text-[11px] text-slate-500">
-                  Desktop/Tasks içindeki görev PDF'ini yükleyin — öğrenci görev ekranından açabilir.
-                </span>
-              )}
+            <div className="space-y-3">
+              <span className="text-[11px] font-mono text-emerald-400 font-bold uppercase tracking-widest">
+                Örnek Çözüm Dosyası (Cevap Anahtarı)
+              </span>
+              <TaskFileControl
+                inputId="solution-pdf"
+                accept=".pdf,.png,.jpg,.jpeg,.webp"
+                emptyHint="Doğru tasarımın PDF'i ya da görseli — öz değerlendirme ekranında öğrenciye gösterilir."
+                uploading={uploadingField === 'solutionPdf'}
+                value={form.solutionPdf}
+                onPick={e => void handleTaskFile('solutionPdf', e)}
+                onClear={() => setForm({ ...form, solutionPdf: undefined })}
+              />
             </div>
 
             {pdfError && (

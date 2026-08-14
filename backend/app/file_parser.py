@@ -12,7 +12,10 @@ from fastapi import UploadFile
 
 from .config import UPLOADS_DIR
 
-ALLOWED_EXTENSIONS = {".step", ".stp", ".iges", ".igs", ".pdf"}
+# Gorsel uzantilar ornek cozum (cevap anahtari) icin: admin dogru tasarimin
+# ekran goruntusunu/render'ini de yukleyebilsin.
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+ALLOWED_EXTENSIONS = {".step", ".stp", ".iges", ".igs", ".pdf"} | IMAGE_EXTENSIONS
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
 
 
@@ -74,6 +77,9 @@ def parse_cad_file(file_path: Path, ext: str) -> Dict[str, Any]:
     elif ext == ".pdf":
         info["validHeader"] = head.startswith(b"%PDF")
         info["standard"] = "PDF (2D Teknik Resim)"
+    elif ext in IMAGE_EXTENSIONS:
+        info["validHeader"] = True
+        info["standard"] = "Raster gorsel (ornek cozum)"
 
     info["note"] = (
         "Placeholder parser: Tam geometri okuma OpenCASCADE entegrasyonu ile eklenecek. "

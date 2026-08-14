@@ -2,7 +2,6 @@ export type ScreenType =
   | 'landing'
   | 'catalog'
   | 'detail'
-  | 'solution'
   | 'evaluation'
   | 'portfolio'
   | 'pricing'
@@ -77,6 +76,12 @@ export interface Task {
    * görev detayında öğrenciye sunulur.
    */
   briefPdf?: { fileId: string; originalName: string };
+
+  /**
+   * Örnek çözüm (cevap anahtarı): doğru tasarımın PDF'i ya da görseli.
+   * Admin panelinden yüklenir, öz değerlendirme ekranında öğrenciye gösterilir.
+   */
+  solutionPdf?: { fileId: string; originalName: string };
 
   /**
    * Otomatik kontrol şartnamesi. Tanımlıysa yüklenen STEP gerçek ölçümle

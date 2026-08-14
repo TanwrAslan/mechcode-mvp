@@ -368,7 +368,15 @@ def serve_upload(file_id: str):
     if not stored:
         raise HTTPException(status_code=404, detail="Dosya bulunamadı")
 
-    media = "application/pdf" if stored.suffix.lower() == ".pdf" else "application/octet-stream"
+    # Tarayici PDF'i ve gorseli sekmede acabilsin diye gercek MIME turunu ver;
+    # bilinmeyen turler indirmeye duser.
+    media = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+    }.get(stored.suffix.lower(), "application/octet-stream")
     return FileResponse(stored, media_type=media, filename=stored.name)
 
 

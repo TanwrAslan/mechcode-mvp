@@ -8,10 +8,9 @@ interface TaskStatusBarProps {
   onNavigate: (screen: ScreenType) => void;
 }
 
-/** Akistaki 3 adimin yuzde karsiligi (detay -> cozum -> degerlendirme). */
+/** Akistaki 2 adimin yuzde karsiligi (detay -> cevap anahtarli degerlendirme). */
 const PROGRESS: Partial<Record<ScreenType, number>> = {
-  detail: 33,
-  solution: 66,
+  detail: 50,
   evaluation: 100,
 };
 

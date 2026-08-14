@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ScreenType, Task, UploadedCad, UserProfile } from '@/types';
+import { ScreenType, Task, UserProfile } from '@/types';
 import { INITIAL_TASKS, INITIAL_USER_PROFILE } from '@/data/tasks';
 
 import { Header } from '@/components/layout/Header';
@@ -11,7 +11,6 @@ import { TaskStatusBar } from '@/components/layout/TaskStatusBar';
 import { LandingScreen } from '@/components/screens/LandingScreen';
 import { TaskCatalogScreen } from '@/components/screens/TaskCatalogScreen';
 import { TaskDetailScreen } from '@/components/screens/TaskDetailScreen';
-import { ExampleSolutionScreen } from '@/components/screens/ExampleSolutionScreen';
 import { SelfEvaluationScreen } from '@/components/screens/SelfEvaluationScreen';
 import { PortfolioScreen } from '@/components/screens/PortfolioScreen';
 import { PricingScreen } from '@/components/screens/PricingScreen';
@@ -35,7 +34,6 @@ const SCREEN_TO_PATH: Record<ScreenType, string> = {
   landing: '/',
   catalog: '/dashboard',
   detail: '/workspace',
-  solution: '/workspace/solution',
   evaluation: '/workspace/evaluation',
   portfolio: '/portfolio',
   pricing: '/pricing',
@@ -50,8 +48,6 @@ const pathToScreen = (pathname: string): ScreenType => {
       return 'catalog';
     case '/workspace':
       return 'detail';
-    case '/workspace/solution':
-      return 'solution';
     case '/workspace/evaluation':
       return 'evaluation';
     case '/portfolio':
@@ -66,7 +62,7 @@ const pathToScreen = (pathname: string): ScreenType => {
 };
 
 /** Gorev akisinda alt durum seridi gosterilen ekranlar. */
-const TASK_FLOW_SCREENS: ScreenType[] = ['detail', 'solution', 'evaluation'];
+const TASK_FLOW_SCREENS: ScreenType[] = ['detail', 'evaluation'];
 
 /**
  * Gorev katalogu SUNUCUDA saklanir (`/api/catalog`).
@@ -108,7 +104,6 @@ export default function App() {
   const [user, setUser] = useState<UserProfile>(INITIAL_USER_PROFILE);
   const [isProModalOpen, setIsProModalOpen] = useState<boolean>(false);
   const [completedTaskIds, setCompletedTaskIds] = useState<string[]>(['task-1']);
-  const [uploadedCad, setUploadedCad] = useState<UploadedCad | null>(null);
 
   const currentScreen = pathToScreen(location.pathname);
   const isLoginPage = location.pathname === '/login';
@@ -156,13 +151,9 @@ export default function App() {
 
   const handleSelectTask = (task: Task) => {
     setSelectedTask(task);
-    if (!uploadedCad || uploadedCad.taskId !== task.id) {
-      setUploadedCad(null);
-    }
     navigate('detail');
   };
 
-  const handleProceedToSolution = () => navigate('solution');
   const handleProceedToEvaluation = () => navigate('evaluation');
 
   const handleCompleteAndAddToPortfolio = (score: number) => {
@@ -300,29 +291,20 @@ export default function App() {
               <ProtectedRoute>
                 <TaskDetailScreen
                   task={selectedTask}
-                  uploadedCad={uploadedCad && uploadedCad.taskId === selectedTask.id ? uploadedCad : null}
-                  onUploadedCadChange={setUploadedCad}
                   onBackToCatalog={() => navigate('catalog')}
-                  onProceedToSolution={handleProceedToSolution}
-                />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/workspace/solution"
-            element={
-              <ProtectedRoute>
-                <ExampleSolutionScreen
-                  task={selectedTask}
-                  uploadedCad={uploadedCad && uploadedCad.taskId === selectedTask.id ? uploadedCad : null}
-                  onUploadedCadChange={setUploadedCad}
-                  onBackToDetail={() => navigate('detail')}
                   onProceedToEvaluation={handleProceedToEvaluation}
                 />
               </ProtectedRoute>
             }
           />
+
+          {/*
+            Eski "ornek cozum + LLM analizi" ekrani kaldirildi: yuklenen dosyayi
+            LLM'e yorumlatan degerlendirme guvenilir sonuc vermiyordu. Akis artik
+            gorev detayindan dogrudan cevap anahtarli oz degerlendirmeye gidiyor.
+            Kayitli/eski baglantilar kirilmasin diye yol yonlendiriliyor.
+          */}
+          <Route path="/workspace/solution" element={<Navigate to="/workspace/evaluation" replace />} />
 
           <Route
             path="/workspace/evaluation"
@@ -330,7 +312,7 @@ export default function App() {
               <ProtectedRoute>
                 <SelfEvaluationScreen
                   task={selectedTask}
-                  onBackToSolution={() => navigate('solution')}
+                  onBackToDetail={() => navigate('detail')}
                   onCompleteAndAddToPortfolio={handleCompleteAndAddToPortfolio}
                 />
               </ProtectedRoute>

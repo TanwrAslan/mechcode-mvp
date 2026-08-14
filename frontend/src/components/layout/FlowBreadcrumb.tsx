@@ -8,11 +8,11 @@ interface FlowBreadcrumbProps {
   onNavigate: (screen: ScreenType) => void;
 }
 
-const TASK_FLOW: ScreenType[] = ['detail', 'solution', 'evaluation'];
+const TASK_FLOW: ScreenType[] = ['detail', 'evaluation'];
 
 /**
  * Landing disindaki tum ekranlarin ustunde duran geri-donus + akis izi seridi.
- * Tasarimdaki "1. Görev › 2. Örnek Çözüm › 3. Değerlendirme" kalibi.
+ * Tasarimdaki "1. Görev › 2. Değerlendirme" kalibi.
  */
 export const FlowBreadcrumb: React.FC<FlowBreadcrumbProps> = ({ currentScreen, onNavigate }) => {
   const { t } = useLanguage();
@@ -20,8 +20,7 @@ export const FlowBreadcrumb: React.FC<FlowBreadcrumbProps> = ({ currentScreen, o
 
   const steps = [
     { screen: 'detail' as const, label: t({ tr: '1. Görev', en: '1. Task' }) },
-    { screen: 'solution' as const, label: t({ tr: '2. Örnek Çözüm', en: '2. Solution' }) },
-    { screen: 'evaluation' as const, label: t({ tr: '3. Değerlendirme', en: '3. Evaluation' }) },
+    { screen: 'evaluation' as const, label: t({ tr: '2. Çözüm & Değerlendirme', en: '2. Solution & Evaluation' }) },
   ];
 
   return (

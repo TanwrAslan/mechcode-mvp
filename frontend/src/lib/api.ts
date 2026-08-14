@@ -187,6 +187,26 @@ export async function openStoredFile(fileId: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+/**
+ * Yüklenmiş bir dosyayı sayfaya gömmek için blob URL üretir.
+ *
+ * `openStoredFile` dosyayı yeni sekmede açar; bu ise `<iframe>`/`<img>` içine
+ * koyulabilecek bir adres döndürür. Çağıran, iş bitince `URL.revokeObjectURL`
+ * ile serbest bırakmalıdır.
+ */
+export async function fetchStoredFileUrl(
+  fileId: string
+): Promise<{ url: string; contentType: string }> {
+  const res = await fetch(`${API_BASE}/uploads/${fileId}`, await withAuthHeaders());
+  if (!res.ok) {
+    throw new Error(
+      res.status === 401 ? 'Oturum gerekli. Lütfen tekrar giriş yapın.' : 'Dosya açılamadı.'
+    );
+  }
+  const blob = await res.blob();
+  return { url: URL.createObjectURL(blob), contentType: blob.type };
+}
+
 export const reportPdfUrl = (analysisId: string) => `${API_BASE}/report/${analysisId}/pdf`;
 
 /**

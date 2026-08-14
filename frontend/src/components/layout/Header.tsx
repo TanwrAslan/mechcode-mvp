@@ -43,7 +43,6 @@ export const Header: React.FC<HeaderProps> = ({
   const isTaskFlow =
     currentScreen === 'catalog' ||
     currentScreen === 'detail' ||
-    currentScreen === 'solution' ||
     currentScreen === 'evaluation';
 
   return (

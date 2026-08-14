@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
 import { Task } from '@/types';
-import { CheckSquare, Trophy, Award, ArrowRight, AlertCircle, CheckCircle2, ChevronLeft } from 'lucide-react';
+import {
+  CheckSquare, Trophy, Award, ArrowRight, AlertCircle, CheckCircle2, ChevronLeft, FileCheck2
+} from 'lucide-react';
+import { StoredFileViewer } from '@/components/viewers/StoredFileViewer';
 import { useLanguage } from '@/features/i18n/LanguageContext';
 
 interface SelfEvaluationScreenProps {
   task: Task;
   onCompleteAndAddToPortfolio: (score: number) => void;
-  onBackToSolution: () => void;
+  onBackToDetail: () => void;
 }
 
 export const SelfEvaluationScreen: React.FC<SelfEvaluationScreenProps> = ({
   task,
   onCompleteAndAddToPortfolio,
-  onBackToSolution
+  onBackToDetail
 }) => {
   const { t } = useLanguage();
   const criteria = task.criteria;
@@ -57,11 +60,11 @@ export const SelfEvaluationScreen: React.FC<SelfEvaluationScreenProps> = ({
             </p>
 
             <button
-              onClick={onBackToSolution}
+              onClick={onBackToDetail}
               className="text-xs font-semibold text-slate-400 hover:text-white transition-colors flex items-center gap-1.5 pt-1"
             >
               <ChevronLeft className="w-4 h-4" />
-              <span>{t({ tr: 'Örnek Çözüme Dön', en: 'Back to Reference Solution' })}</span>
+              <span>{t({ tr: 'Görev Detayına Dön', en: 'Back to Task Detail' })}</span>
             </button>
           </div>
 
@@ -83,6 +86,54 @@ export const SelfEvaluationScreen: React.FC<SelfEvaluationScreenProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ------------------------------ ÖRNEK ÇÖZÜM (CEVAP ANAHTARI) */}
+      <div className="bg-[#162a4e] border border-white/10 rounded-xl p-6 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded bg-[#e05a00]/10 border border-[#e05a00]/30 flex items-center justify-center text-[#e05a00] shrink-0">
+              <FileCheck2 className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white uppercase tracking-tight">
+                {t({ tr: 'Örnek Çözüm (Cevap Anahtarı)', en: 'Reference Solution (Answer Key)' })}
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {t({
+                  tr: 'Doğru tasarımın referans teknik resmi / görseli',
+                  en: 'Reference drawing or render of the correct design',
+                })}
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono font-bold text-[#e05a00] bg-[#e05a00]/10 border border-[#e05a00]/30 px-2 py-0.5 rounded uppercase self-center">
+            {t({ tr: 'Referans', en: 'Reference' })}
+          </span>
+        </div>
+
+        {task.solutionPdf ? (
+          <StoredFileViewer
+            fileId={task.solutionPdf.fileId}
+            originalName={task.solutionPdf.originalName}
+            heightClass="h-[680px]"
+          />
+        ) : (
+          <div className="bg-[#0a162b] border border-dashed border-white/10 rounded-lg p-8 text-center space-y-1">
+            <p className="text-xs text-slate-400">
+              {t({
+                tr: 'Bu görev için henüz örnek çözüm dosyası yüklenmemiş.',
+                en: 'No reference solution file has been uploaded for this task yet.',
+              })}
+            </p>
+            <p className="text-[11px] text-slate-500 font-mono">
+              {t({
+                tr: 'Admin Paneli → Görev Düzenle → "Örnek Çözüm Dosyası"',
+                en: 'Admin Panel → Edit Task → "Reference Solution File"',
+              })}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Interactive Criteria Checkboxes */}
